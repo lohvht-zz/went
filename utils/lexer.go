@@ -42,57 +42,48 @@ type tokenType int
 // objects
 // arrays
 
-// itemPipe       // pipe symbol
-// itemRawString  // raw quoted string (includes quotes)
-// itemRightDelim // right action delimiter
-// itemRightParen // ')' inside action
-// itemSpace      // run of spaces separating arguments
-// itemString     // quoted string (includes quotes)
-// itemText       // plain text
-// itemVariable   // variable starting with '$', such as '$' or  '$1' or '$hello'
-// // Keywords appear after all the rest.
-// itemKeyword  // used only to delimit the keywords
-// itemBlock    // block keyword
-// itemDot      // the cursor, spelled '.'
-// itemDefine   // define keyword
-// itemElse     // else keyword
-// itemEnd      // end keyword
-// itemIf       // if keyword
-// itemNil      // the untyped nil constant, easiest to treat as a keyword
-// itemRange    // range keyword
-// itemTemplate // template keyword
-// itemWith     // with keyword
-
 const (
-	tokenError  tokenType = iota // error occurred; value is the text of error
-	tokenBool                    // boolean constant
-	tokenEquals                  // Equals ('=') sign to introduce a declaration
+	tokenError        tokenType = iota // error occurred; value is the text of error
+	tokenBool                          // boolean constant
+	tokenEquals                        // Equals ('=') sign to introduce a declaration
+	tokenDoubleEquals                  // Double Equals ('==') sign to test for equality
+	tokenNotEquals                     // Not equals ('!=') sign, to test for not equality
+	tokenLogicalNot                    // exclamation mark ('!') as logical not
 	tokenEOF
-	tokenProperty   // alphanumeric identifier starting with '.', used in accessing object properties
-	tokenIdentifier // alphanumeric identifier not starting with '.' may be a variable/function/class/struct
-	tokenLeftParen  // left parenthesis '('
-	tokenNumber     // simple number, including floating points
-	tokenOp         // basic math operation ('+', '-', '/', '*')
-	tokenSpace      // literally a space
-	tokenRawString  // raw quoted string including the quotes (""")
-	tokenOr
-	tokenAnd
+	tokenProperty     // alphanumeric identifier starting with '.', used in accessing object properties
+	tokenIdentifier   // alphanumeric identifier not starting with '.' may be a variable/function/class/struct
+	tokenLeftParen    // left parenthesis '('
+	tokenRightParan   // right parenthesis ')'
+	tokenComment      // comments, both single line comment ('//') and multiline comments ('/*', '*/')
+	tokenNumber       // simple number, including floating points
+	tokenOp           // basic math operation ('+', '-', '/', '*')
+	tokenSpace        // literally a space (' ')
+	tokenNewline      // newline token ('\r\n' or '\n')
+	tokenQuotedString // Singly quoted ('\'') strings, escaped using a single '\' char
+	tokenRawString    // tilde quoted ('`') strings, intepreted as-is, with no way of escaping
+	tokenOr           // OR symbol, represented by ('||')
+	tokenAnd          // AND sumbol, represented by ('&&')
 	// Keywords after all the rest
-	tokenKeyword // Only used to delimit the keywords below
-	tokenFunctionDef
-	tokenVar // variable declaration using the keyword 'var'
-	tokenIf
-	tokenElse
-	tokenElseIf
-	tokenFor
+	tokenKeyword     // Only used to delimit the keywords below
+	tokenFunctionDef // 'funcDef' keyword for function definition
+	tokenVar         // variable declaration using the keyword 'var'
+	tokenIf          // 'if' keyword
+	tokenElse        // 'else' keyword
+	tokenElseIf      // 'else if' keyword
+	tokenFor         // 'for' keyword, for loops
+	tokenRange       // 'range' keyword, to be used with for-loops to create a shortcut
+	tokenNull        // 'null' constant, treated as a keyword
 )
 
 var keyMap = map[string]tokenType{
 	"funcDef": tokenFunctionDef,
+	"var":     tokenVar,
 	"if":      tokenIf,
 	"else":    tokenElse,
 	"elseIf":  tokenElseIf,
 	"for":     tokenFor,
+	"range":   tokenRange,
+	"null":    tokenNull,
 }
 
 func (tok Token) toString() string {
@@ -151,8 +142,9 @@ func (l *lexer) backup() {
 // emit passes a token back to the client
 func (l *lexer) emit(typ tokenType) {
 	l.tokens <- Token{typ, l.start, l.input[l.start:l.pos], l.line}
+	// Some of the tokens contain text internally, if so, count their newlines
 	switch typ {
-	case tokenRawString:
+	case tokenRawString, tokenQuotedString, tokenComment:
 		l.line += strings.Count(l.input[l.start:l.pos], "\n")
 	}
 	l.start = l.pos
@@ -224,41 +216,270 @@ func (l *lexer) run() {
 // State functions
 
 const (
-	leftComment  = "/*"
-	rightComment = "*/"
+	leftComment       = "/*"
+	rightComment      = "*/"
+	singleLineComment = "//"
 )
 
-// lexCode scans the main body of the code
+// lexCode scans the main body of the code, recursively returning itself
 func lexCode(l *lexer) stateFunc {
 	switch r := l.next(); {
-	case r == eof:
-		// if l.paranthesisDepth != 0 {
-		// 	return l.errorf("Unclosed left paranthesis '('")
-		// }
-		l.emit(tokenEOF)
-	case isEndOfLine(r) || isSpace(r):
+	case r == eof: // Where the lexCode loop terminates, when it reaches EOF
+		return lexEOF
+	case isSpace(r):
 		return lexSpace
-	case r == '=':
-		// If double equals ('==') not an assigment
+	case isEndOfLine(r): // detects \r OR \n
+		l.backup()
+		return lexNewline
+	case r == '!':
 		if l.next() != '=' {
-			l.emit(tokenEquals)
-			// go back
 			l.backup()
+			l.emit(tokenLogicalNot)
+		} else {
+			l.emit(tokenNotEquals)
+		}
+	case r == '=':
+		if l.next() != '=' {
+			l.backup()
+			l.emit(tokenEquals)
+		} else {
+			l.emit(tokenDoubleEquals)
 		}
 	case r == '|':
-		if l.next() != '|' {
+		if l.next() == '|' {
 			l.emit(tokenOr)
+		} else {
+			l.errorf("Expected '|' token")
 		}
-
+	case r == '&':
+		if l.next() == '&' {
+			l.emit(tokenAnd)
+		} else {
+			l.errorf("Expected '&' token")
+		}
+	case r == '"':
+		return lexQuotedString
+	case r == '`':
+		return lexRawString
+	case r == '.':
+		// Special lookahead for ".property" so we don't break l.backup()
+		if l.pos < len(l.input) {
+			r := l.input[l.pos]
+			if r < '0' || r > '9' { // if its not a number
+				return lexProperty
+			}
+		}
+		fallthrough // '.' can start a number
+	case '0' <= r && r <= '9':
+		l.backup()
+		return lexNumber
+	case r == '+' || r == '-':
+		// Special lookahead to look for a number from 0-9 from the next char
+		if l.pos < len(l.input) {
+			r := l.input[l.pos]
+			if '0' <= r && r <= '9' {
+				l.backup()
+				return lexNumber
+			}
+		}
+		fallthrough // '+', '-' is a math operation instead of the start of a number
+	case r == '/' || r == '*':
+		l.emit(tokenOp)
+	case isAlphaNumeric(r):
+		l.backup()
+		return lexIdentifier
+	case r == '(':
+		l.emit(tokenLeftParen)
+		l.paranthesisDepth++
+	case r == ')':
+		l.emit(tokenRightParan)
+		l.paranthesisDepth--
+		if l.paranthesisDepth < 0 {
+			return l.errorf("Unexpected right parenthesis %#U", r)
+		}
+	default:
+		return l.errorf("Unrecognised character in code: %#U", r)
 	}
-	// if reached at this part, lexer has correctly reached the EOF
+	return lexCode
+}
+
+// lexEOF emits the EOF token and handles the termination of the main lexCode loop
+func lexEOF(l *lexer) stateFunc {
+	if l.paranthesisDepth != 0 {
+		return l.errorf("Unclosed left paranthesis '('")
+	}
 	l.emit(tokenEOF)
 	return nil
 }
 
-// TODO: implement me!
+// lexSpace scans a run of space characters, One space has already been seen
 func lexSpace(l *lexer) stateFunc {
-	return nil
+	for isSpace(l.peek()) {
+		l.next()
+	}
+	l.emit(tokenSpace)
+	return lexCode
+}
+
+// lexNewline scans for a run of newline characters (either \r\n OR \n)
+func lexNewline(l *lexer) stateFunc {
+Loop:
+	for {
+		switch r := l.next(); {
+		case r == '\n':
+			// Absorb and go to next iteration
+		case r == '\r' && l.peek() == '\n':
+			l.next() // advance after \n
+			// Absorb and go to next iteration
+		default:
+			l.backup()
+			break Loop
+		}
+	}
+	l.emit(tokenNewline)
+	return lexCode
+}
+
+// lexQuotedString scans a quoted string, can be escaped using the '\' character
+func lexQuotedString(l *lexer) stateFunc {
+	startLine := l.line
+Loop:
+	for {
+		switch l.next() {
+		case '\\': // single '\' character as escape character
+			if r := l.next(); r == eof {
+				// restore line number to where the open quote is by replacing the l.line
+				// Error out after that
+				l.line = startLine
+				return l.errorf("Unterminated Quoted String")
+			} // Else just absorb and continue consuming the rest of the string
+		case '"':
+			break Loop
+		}
+	}
+	l.emit(tokenQuotedString)
+	return lexCode
+}
+
+// lexRawString scans a raw string delimited by '`' character
+func lexRawString(l *lexer) stateFunc {
+	startLine := l.line
+Loop:
+	for {
+		switch l.next() {
+		case eof:
+			// restore line number to the location of the opening quote
+			// will error out, okay to overwrite l.line
+			l.line = startLine
+			return l.errorf("Unterminated raw string")
+		case '`':
+			break Loop
+		}
+	}
+	l.emit(tokenRawString)
+	return lexCode
+}
+
+// lexProperty scans an object accessed by its property: .Alphanumeric
+// the front '.' char has already been scanned
+func lexProperty(l *lexer) stateFunc {
+	if l.atIdentifierTerminator() { // If nothing interesting follows => '.'
+		return l.errorf("Bad character: %#U", l.input[l.pos])
+	}
+	var r rune
+	for {
+		if r = l.next(); !isAlphaNumeric(r) {
+			l.backup()
+			break
+		}
+	}
+	if !l.atIdentifierTerminator() {
+		return l.errorf("Bad character: %#U", r)
+	}
+	l.emit(tokenProperty)
+	return lexCode
+}
+
+// lexNumber scan for a decimal number, it isn't a perfect number scanner
+// for e.g. it accepts '.' and '089', but when its wrong the input is invalid
+// TODO: When invalid, implement the parser (maybe using strconv) to notice these
+// mistakes
+func lexNumber(l *lexer) stateFunc {
+	if !l.scanNumber() {
+		return l.errorf("Bad number syntax: %q", l.input[l.start:l.pos])
+	}
+	l.emit(tokenNumber)
+	return lexCode
+}
+
+func (l *lexer) scanNumber() bool {
+	// Optional leading sign
+	digits := "0123456789"
+	leadingSigns := "+-"
+	l.accept(leadingSigns)
+	l.acceptRun(digits)
+	// Decimal
+	if l.accept(".") {
+		l.acceptRun(digits)
+	}
+	// Powers of 10
+	if l.accept("eE") {
+		l.accept(leadingSigns)
+		l.accept(digits)
+	}
+	// Next thing after everything else
+	if isAlphaNumeric(l.peek()) {
+		l.next()
+		return false
+	}
+	return true
+}
+
+// lexIdentifier scans an alphanumeric word
+func lexIdentifier(l *lexer) stateFunc {
+Loop:
+	for {
+		switch r := l.next(); {
+		case isAlphaNumeric(r):
+			// absorb until no more next alphanumeric characters
+		default:
+			l.backup()
+			word := l.input[l.start:l.pos]
+			if !l.atIdentifierTerminator() {
+				return l.errorf("Bad character: %#U", r)
+			}
+			switch {
+			case keyMap[word] > tokenKeyword:
+				l.emit(keyMap[word])
+			case word == "true", word == "false":
+				l.emit(tokenBool)
+			default:
+				l.emit(tokenIdentifier)
+			}
+			break Loop
+		}
+	}
+	return lexCode
+}
+
+// atIdentifierTerminator reports whether the input is at valid
+// termination character to appear after an identifier
+func (l *lexer) atIdentifierTerminator() bool {
+	r := l.peek()
+	if isSpace(r) || isEndOfLine(r) {
+		return true
+	}
+	switch r {
+	case
+		eof,      // EOF character
+		'.', ',', // DOT ('.') to denote .property, or commas
+		'|', '&', // OR ('||'), or AND ('&&')
+		'=',      // assignment/declaration ('='), or equality check ('==')
+		')', '(', // Parenthesis '(', ')'
+		'+', '-', '/', '*': // Math operator signs
+		return true
+	}
+	return false
 }
 
 // Utility Functions
