@@ -9,15 +9,17 @@ import (
 
 // Most of this package is listed and adapted from https://golang.org/src/text/template/parse/lex.go
 
-// Token : String token read in and formed by the lexer
-type Token struct {
+/**
+ * token Definition
+ */
+type token struct {
 	typ   tokenType // Type of this token
 	pos   int       // Starting position, in bytes of this item in the input string
 	value string    // value of this item
 	line  int       // Line number at the start of this item
 }
 
-func (tok Token) String() string {
+func (tok token) String() string {
 	switch {
 	case tok.typ == tokenEOF:
 		return "EOF"
@@ -86,15 +88,15 @@ var keyMap = map[string]tokenType{
 	"null":    tokenNull,
 }
 
-func (tok Token) toString() string {
+func (tok token) toString() string {
 	return string(tok.value)
 }
 
 const eof = -1
 
-// stateFn represents the state of the scanner as a function that returns the next state
-type stateFunc func(*lexer) stateFunc
-
+/**
+ * lexer Definition
+ */
 type lexer struct {
 	name  string // name of the input; used only for error reporting
 	input string // string being scanned
@@ -103,7 +105,7 @@ type lexer struct {
 	pos              int        // current position
 	start            int        // start position of this token
 	width            int        // width of the last rune read from input
-	tokens           chan Token // channel of the scanned items
+	tokens           chan token // channel of the scanned items
 	paranthesisDepth int        // nesting depth of () brackets
 	line             int        // 1 + number of newlines seen
 }
@@ -141,7 +143,7 @@ func (l *lexer) backup() {
 
 // emit passes a token back to the client
 func (l *lexer) emit(typ tokenType) {
-	l.tokens <- Token{typ, l.start, l.input[l.start:l.pos], l.line}
+	l.tokens <- token{typ, l.start, l.input[l.start:l.pos], l.line}
 	// Some of the tokens contain text internally, if so, count their newlines
 	switch typ {
 	case tokenRawString, tokenQuotedString, tokenComment:
@@ -176,13 +178,13 @@ func (l *lexer) acceptRun(valid string) {
 // pointer that will be the next state, terminating l.nextToken.
 // also emits an error token.
 func (l *lexer) errorf(format string, args ...interface{}) stateFunc {
-	l.tokens <- Token{tokenError, l.start, fmt.Sprintf(format, args...), l.line}
+	l.tokens <- token{tokenError, l.start, fmt.Sprintf(format, args...), l.line}
 	return nil
 }
 
 // nextToken returns the next token from the input
 // called by the parser, not in the lexing goroutine
-func (l *lexer) nextToken() Token {
+func (l *lexer) nextToken() token {
 	return <-l.tokens
 }
 
@@ -193,18 +195,6 @@ func (l *lexer) drain() {
 	}
 }
 
-// lex creates a new scanner for the input string
-func lex(name, input string) *lexer {
-	l := &lexer{
-		name:   name,
-		input:  input,
-		tokens: make(chan Token),
-		line:   1,
-	}
-	go l.run()
-	return l
-}
-
 // run starts the state machine for the lexer
 func (l *lexer) run() {
 	for state := lexCode; state != nil; {
@@ -213,7 +203,65 @@ func (l *lexer) run() {
 	close(l.tokens)
 }
 
+func (l *lexer) scanNumber() bool {
+	// Optional leading sign
+	digits := "0123456789"
+	leadingSigns := "+-"
+	l.accept(leadingSigns)
+	l.acceptRun(digits)
+	// Decimal
+	if l.accept(".") {
+		l.acceptRun(digits)
+	}
+	// Powers of 10
+	if l.accept("eE") {
+		l.accept(leadingSigns)
+		l.accept(digits)
+	}
+	// Next thing after everything else
+	if isAlphaNumeric(l.peek()) {
+		l.next()
+		return false
+	}
+	return true
+}
+
+// atIdentifierTerminator reports whether the input is at valid
+// termination character to appear after an identifier
+func (l *lexer) atIdentifierTerminator() bool {
+	r := l.peek()
+	if isSpace(r) || isEndOfLine(r) {
+		return true
+	}
+	switch r {
+	case
+		eof,      // EOF character
+		'.', ',', // DOT ('.') to denote .property, or commas
+		'|', '&', // OR ('||'), or AND ('&&')
+		'=',      // assignment/declaration ('='), or equality check ('==')
+		')', '(', // Parenthesis '(', ')'
+		'+', '-', '/', '*': // Math operator signs
+		return true
+	}
+	return false
+}
+
+// lex creates a new scanner for the input string
+func lex(name, input string) *lexer {
+	l := &lexer{
+		name:   name,
+		input:  input,
+		tokens: make(chan token),
+		line:   1,
+	}
+	go l.run()
+	return l
+}
+
 // State functions
+
+// stateFn represents the state of the scanner as a function that returns the next state
+type stateFunc func(*lexer) stateFunc
 
 const (
 	leftComment       = "/*"
@@ -412,29 +460,6 @@ func lexNumber(l *lexer) stateFunc {
 	return lexCode
 }
 
-func (l *lexer) scanNumber() bool {
-	// Optional leading sign
-	digits := "0123456789"
-	leadingSigns := "+-"
-	l.accept(leadingSigns)
-	l.acceptRun(digits)
-	// Decimal
-	if l.accept(".") {
-		l.acceptRun(digits)
-	}
-	// Powers of 10
-	if l.accept("eE") {
-		l.accept(leadingSigns)
-		l.accept(digits)
-	}
-	// Next thing after everything else
-	if isAlphaNumeric(l.peek()) {
-		l.next()
-		return false
-	}
-	return true
-}
-
 // lexIdentifier scans an alphanumeric word
 func lexIdentifier(l *lexer) stateFunc {
 Loop:
@@ -460,26 +485,6 @@ Loop:
 		}
 	}
 	return lexCode
-}
-
-// atIdentifierTerminator reports whether the input is at valid
-// termination character to appear after an identifier
-func (l *lexer) atIdentifierTerminator() bool {
-	r := l.peek()
-	if isSpace(r) || isEndOfLine(r) {
-		return true
-	}
-	switch r {
-	case
-		eof,      // EOF character
-		'.', ',', // DOT ('.') to denote .property, or commas
-		'|', '&', // OR ('||'), or AND ('&&')
-		'=',      // assignment/declaration ('='), or equality check ('==')
-		')', '(', // Parenthesis '(', ')'
-		'+', '-', '/', '*': // Math operator signs
-		return true
-	}
-	return false
 }
 
 // Utility Functions
