@@ -56,9 +56,8 @@ const (
 	tokenIdentifier   // alphanumeric identifier not starting with '.' may be a variable/function/class/struct
 	tokenLeftParen    // left parenthesis '('
 	tokenRightParan   // right parenthesis ')'
-	tokenComment      // comments, both single line comment ('//') and multiline comments ('/*', '*/')
 	tokenNumber       // simple number, including floating points
-	tokenOp           // basic math operation ('+', '-', '/', '*')
+	tokenOp           // math operation ('+', '-', '/', '*', '%')
 	tokenSpace        // literally a space (' ')
 	tokenNewline      // newline token ('\r\n' or '\n')
 	tokenQuotedString // Singly quoted ('\'') strings, escaped using a single '\' char
@@ -112,7 +111,7 @@ type lexer struct {
 
 // next returns the next rune in the input
 func (l *lexer) next() rune {
-	if l.pos > len(l.input) {
+	if l.pos >= len(l.input) {
 		l.width = 0
 		return eof
 	}
@@ -146,7 +145,7 @@ func (l *lexer) emit(typ tokenType) {
 	l.tokens <- token{typ, l.start, l.input[l.start:l.pos], l.line}
 	// Some of the tokens contain text internally, if so, count their newlines
 	switch typ {
-	case tokenRawString, tokenQuotedString, tokenComment:
+	case tokenRawString, tokenQuotedString:
 		l.line += strings.Count(l.input[l.start:l.pos], "\n")
 	}
 	l.start = l.pos
@@ -240,7 +239,7 @@ func (l *lexer) atIdentifierTerminator() bool {
 		'|', '&', // OR ('||'), or AND ('&&')
 		'=',      // assignment/declaration ('='), or equality check ('==')
 		')', '(', // Parenthesis '(', ')'
-		'+', '-', '/', '*': // Math operator signs
+		'+', '-', '/', '*', '%': // Math operator signs, or start of a comment ('//', '/*')
 		return true
 	}
 	return false
@@ -262,12 +261,6 @@ func lex(name, input string) *lexer {
 
 // stateFn represents the state of the scanner as a function that returns the next state
 type stateFunc func(*lexer) stateFunc
-
-const (
-	leftComment       = "/*"
-	rightComment      = "*/"
-	singleLineComment = "//"
-)
 
 // lexCode scans the main body of the code, recursively returning itself
 func lexCode(l *lexer) stateFunc {
@@ -331,8 +324,20 @@ func lexCode(l *lexer) stateFunc {
 			}
 		}
 		fallthrough // '+', '-' is a math operation instead of the start of a number
-	case r == '/' || r == '*':
+	case r == '*' || r == '%':
 		l.emit(tokenOp)
+	case r == '/':
+		// Scans the next string
+		switch r := l.next(); {
+		case r == '/':
+			return lexSinglelineComment
+		case r == '*':
+			return lexMultilineComment
+		default:
+			// Default case, is divider ('/')
+			l.backup()
+			l.emit(tokenOp)
+		}
 	case isAlphaNumeric(r):
 		l.backup()
 		return lexIdentifier
@@ -484,6 +489,36 @@ Loop:
 			break Loop
 		}
 	}
+	return lexCode
+}
+
+// lexSinglelineComment scans a single line comment ('//') and discards it
+// The comment marker ('//') has already been consumed
+// This assumes that the entire line is scanned, if no newline is detected, then
+// it will basically count to EOF
+func lexSinglelineComment(l *lexer) stateFunc {
+	if i := strings.Index(l.input[l.pos:], "\n"); i < 0 {
+		// Major assumption, if the index of newline ("\n") is not found, then the input
+		// has only 1 single line with a comment somewhere on the line
+		// Move the positional scanner to the end of the file
+		l.pos += len(l.input[l.pos:])
+	} else {
+		l.pos += i
+	}
+	l.ignore()
+	return lexCode
+}
+
+// lexMultilineComment scans for a multiline comment block ('/*', '*/') and discards it
+// The left comment marker ('/*') has already been consumed
+func lexMultilineComment(l *lexer) stateFunc {
+	rightComment := "*/"
+	i := strings.Index(l.input[l.pos:], rightComment)
+	if i < 0 {
+		return l.errorf("Multiline comment is not closed")
+	}
+	l.pos += i + len(rightComment)
+	l.ignore()
 	return lexCode
 }
 
