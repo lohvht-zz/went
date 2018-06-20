@@ -56,6 +56,8 @@ const (
 	tokenIdentifier   // alphanumeric identifier not starting with '.' may be a variable/function/class/struct
 	tokenLeftParen    // left parenthesis '('
 	tokenRightParan   // right parenthesis ')'
+	tokenLeftBrace    // left brace '{'
+	tokenRightBrace   // right brace '}'
 	tokenNumber       // simple number, including floating points
 	tokenOp           // math operation ('+', '-', '/', '*', '%')
 	tokenSpace        // literally a space (' ')
@@ -106,6 +108,7 @@ type lexer struct {
 	width            int        // width of the last rune read from input
 	tokens           chan token // channel of the scanned items
 	paranthesisDepth int        // nesting depth of () brackets
+	bracesDepth      int        // nesting depth of {} brackets
 	line             int        // 1 + number of newlines seen
 }
 
@@ -245,8 +248,8 @@ func (l *lexer) atIdentifierTerminator() bool {
 	return false
 }
 
-// lex creates a new scanner for the input string
-func lex(name, input string) *lexer {
+// tokenise creates a new scanner for the input string
+func tokenise(name, input string) *lexer {
 	l := &lexer{
 		name:   name,
 		input:  input,
@@ -350,6 +353,15 @@ func lexCode(l *lexer) stateFunc {
 		if l.paranthesisDepth < 0 {
 			return l.errorf("Unexpected right parenthesis %#U", r)
 		}
+	case r == '{':
+		l.emit(tokenLeftBrace)
+		l.bracesDepth++
+	case r == '}':
+		l.emit(tokenRightBrace)
+		l.bracesDepth--
+		if l.bracesDepth < 0 {
+			return l.errorf("Unexpected right brace %#U", r)
+		}
 	default:
 		return l.errorf("Unrecognised character in code: %#U", r)
 	}
@@ -360,6 +372,8 @@ func lexCode(l *lexer) stateFunc {
 func lexEOF(l *lexer) stateFunc {
 	if l.paranthesisDepth != 0 {
 		return l.errorf("Unclosed left paranthesis '('")
+	} else if l.bracesDepth != 0 {
+		return l.errorf("Unclosed right brace '}'")
 	}
 	l.emit(tokenEOF)
 	return nil
