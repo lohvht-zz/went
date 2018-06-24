@@ -58,6 +58,13 @@ func makeToken(typ tokenType, value string) token {
 var (
 	tknEOF     = makeToken(tokenEOF, "")
 	tknNL      = makeToken(tokenNewline, "\n")
+	tknEqls    = makeToken(tokenEquals, "=")
+	tknPlus    = makeToken(tokenOp, "+")
+	tknMinus   = makeToken(tokenOp, "-")
+	tknDiv     = makeToken(tokenOp, "/")
+	tknMult    = makeToken(tokenOp, "*")
+	tknMod     = makeToken(tokenOp, "%")
+	tknSpace   = makeToken(tokenSpace, " ")
 	tknFuncDef = makeToken(tokenFunctionDef, "func")
 	tknVar     = makeToken(tokenVar, "var")
 	tknIf      = makeToken(tokenIf, "if")
@@ -87,6 +94,20 @@ var lexTests = []lexTestcase{
 		tknEOF,
 	}},
 	{"multiline comment", "/* This should be a comment\n more paragraphs*/", []token{
+		tknEOF,
+	}},
+	{"division parse", "var x = 1.2 /* 2 *// 2", []token{
+		tknVar,
+		tknSpace,
+		makeToken(tokenIdentifier, "x"),
+		tknSpace,
+		tknEqls,
+		tknSpace,
+		makeToken(tokenNumber, "1.2"),
+		tknSpace,
+		tknDiv,
+		tknSpace,
+		makeToken(tokenNumber, "2"),
 		tknEOF,
 	}},
 	// Error Test Cases
