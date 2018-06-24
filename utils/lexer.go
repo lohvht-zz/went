@@ -7,14 +7,15 @@ import (
 	"unicode/utf8"
 )
 
-// Most of this package is listed and adapted from https://golang.org/src/text/template/parse/lex.go
+// Most of this package is listed and adapted from
+// https://golang.org/src/text/template/parse/lex.go
 
 /**
  * token Definition
  */
 type token struct {
 	typ   tokenType // Type of this token
-	pos   int       // Starting position, in bytes of this item in the input string
+	pos   Pos       // Starting position, in bytes of this item in the input string
 	value string    // value of this item
 	line  int       // Line number at the start of this item
 }
@@ -27,8 +28,8 @@ func (tok token) String() string {
 		return tok.value
 	case tok.typ > tokenKeyword:
 		return fmt.Sprintf("<%s>", tok.value)
-	case len(tok.value) > 10:
-		return fmt.Sprintf("%.10q...", tok.value)
+		// case len(tok.value) > 10:
+		// 	return fmt.Sprintf("%.10q...", tok.value) // commented this, fullprint
 	}
 	return fmt.Sprintf("%q", tok.value)
 }
@@ -46,29 +47,33 @@ type tokenType int
 
 const (
 	tokenError        tokenType = iota // error occurred; value is the text of error
-	tokenBool                          // boolean constant
 	tokenEquals                        // Equals ('=') sign to introduce a declaration
 	tokenDoubleEquals                  // Double Equals ('==') sign to test for equality
 	tokenNotEquals                     // Not equals ('!=') sign, to test for not equality
 	tokenLogicalNot                    // exclamation mark ('!') as logical not
 	tokenEOF
-	tokenProperty     // alphanumeric identifier starting with '.', used in accessing object properties
-	tokenIdentifier   // alphanumeric identifier not starting with '.' may be a variable/function/class/struct
-	tokenLeftParen    // left parenthesis '('
-	tokenRightParan   // right parenthesis ')'
-	tokenLeftBrace    // left brace '{'
-	tokenRightBrace   // right brace '}'
-	tokenNumber       // simple number, including floating points
-	tokenOp           // math operation ('+', '-', '/', '*', '%')
-	tokenSpace        // literally a space (' ')
-	tokenNewline      // newline token ('\r\n' or '\n')
+	tokenProperty   // alphanumeric identifier starting with '.', used in accessing object properties
+	tokenIdentifier // alphanumeric identifier not starting with '.' may be a variable/function/class/struct
+	tokenLeftParen  // left parenthesis '('
+	tokenRightParan // right parenthesis ')'
+	tokenLeftBrace  // left brace '{'
+	tokenRightBrace // right brace '}'
+	// tokenLeftSquare // left square bracket '['
+	// tokenRightSquare // right square bracket ']'
+	// tolenColon // colon symbol ':'
+	tokenOp      // math operations such as '+', '/', '*', '-', '%'
+	tokenSpace   // literally a space (' ')
+	tokenNewline // newline token ('\r\n' or '\n')
+	tokenOr      // OR symbol, represented by ('||')
+	tokenAnd     // AND sumbol, represented by ('&&')
+	// Literal tokens (not including object, array)
+	tokenBool         // boolean literal (true, false)
+	tokenNumber       // Integer64 or float64 numbers
 	tokenQuotedString // Singly quoted ('\'') strings, escaped using a single '\' char
 	tokenRawString    // tilde quoted ('`') strings, intepreted as-is, with no way of escaping
-	tokenOr           // OR symbol, represented by ('||')
-	tokenAnd          // AND sumbol, represented by ('&&')
 	// Keywords after all the rest
 	tokenKeyword     // Only used to delimit the keywords below
-	tokenFunctionDef // 'funcDef' keyword for function definition
+	tokenFunctionDef // 'func' keyword for function definition
 	tokenVar         // variable declaration using the keyword 'var'
 	tokenIf          // 'if' keyword
 	tokenElse        // 'else' keyword
@@ -79,18 +84,14 @@ const (
 )
 
 var keyMap = map[string]tokenType{
-	"funcDef": tokenFunctionDef,
-	"var":     tokenVar,
-	"if":      tokenIf,
-	"else":    tokenElse,
-	"elseIf":  tokenElseIf,
-	"for":     tokenFor,
-	"range":   tokenRange,
-	"null":    tokenNull,
-}
-
-func (tok token) toString() string {
-	return string(tok.value)
+	"func":   tokenFunctionDef,
+	"var":    tokenVar,
+	"if":     tokenIf,
+	"else":   tokenElse,
+	"elseIf": tokenElseIf,
+	"for":    tokenFor,
+	"range":  tokenRange,
+	"null":   tokenNull,
 }
 
 const eof = -1
@@ -103,9 +104,9 @@ type lexer struct {
 	input string // string being scanned
 	// leftDelim        string // start of Action (based on template)
 	// rightDelim       string
-	pos              int        // current position
-	start            int        // start position of this token
-	width            int        // width of the last rune read from input
+	pos              Pos        // current position
+	start            Pos        // start position of this token
+	width            Pos        // width of the last rune read from input
 	tokens           chan token // channel of the scanned items
 	paranthesisDepth int        // nesting depth of () brackets
 	bracesDepth      int        // nesting depth of {} brackets
@@ -114,12 +115,12 @@ type lexer struct {
 
 // next returns the next rune in the input
 func (l *lexer) next() rune {
-	if l.pos >= len(l.input) {
+	if int(l.pos) >= len(l.input) {
 		l.width = 0
 		return eof
 	}
-	r, w := utf8.DecodeLastRuneInString(l.input[l.pos:])
-	l.width = w
+	r, w := utf8.DecodeRuneInString(l.input[l.pos:])
+	l.width = Pos(w)
 	l.pos += l.width
 	if r == '\n' {
 		l.line++
@@ -307,7 +308,7 @@ func lexCode(l *lexer) stateFunc {
 		return lexRawString
 	case r == '.':
 		// Special lookahead for ".property" so we don't break l.backup()
-		if l.pos < len(l.input) {
+		if int(l.pos) < len(l.input) {
 			r := l.input[l.pos]
 			if r < '0' || r > '9' { // if its not a number
 				return lexProperty
@@ -319,7 +320,7 @@ func lexCode(l *lexer) stateFunc {
 		return lexNumber
 	case r == '+' || r == '-':
 		// Special lookahead to look for a number from 0-9 from the next char
-		if l.pos < len(l.input) {
+		if int(l.pos) < len(l.input) {
 			r := l.input[l.pos]
 			if '0' <= r && r <= '9' {
 				l.backup()
@@ -330,7 +331,7 @@ func lexCode(l *lexer) stateFunc {
 	case r == '*' || r == '%':
 		l.emit(tokenOp)
 	case r == '/':
-		// Scans the next string
+		// Scans the next rune
 		switch r := l.next(); {
 		case r == '/':
 			return lexSinglelineComment
@@ -469,8 +470,6 @@ func lexProperty(l *lexer) stateFunc {
 
 // lexNumber scan for a decimal number, it isn't a perfect number scanner
 // for e.g. it accepts '.' and '089', but when its wrong the input is invalid
-// TODO: When invalid, implement the parser (maybe using strconv) to notice these
-// mistakes
 func lexNumber(l *lexer) stateFunc {
 	if !l.scanNumber() {
 		return l.errorf("Bad number syntax: %q", l.input[l.start:l.pos])
@@ -515,9 +514,10 @@ func lexSinglelineComment(l *lexer) stateFunc {
 		// Major assumption, if the index of newline ("\n") is not found, then the input
 		// has only 1 single line with a comment somewhere on the line
 		// Move the positional scanner to the end of the file
-		l.pos += len(l.input[l.pos:])
+		fmt.Println("i is: ", i)
+		l.pos += Pos(len(l.input[l.pos:]))
 	} else {
-		l.pos += i
+		l.pos += Pos(i)
 	}
 	l.ignore()
 	return lexCode
@@ -531,7 +531,7 @@ func lexMultilineComment(l *lexer) stateFunc {
 	if i < 0 {
 		return l.errorf("Multiline comment is not closed")
 	}
-	l.pos += i + len(rightComment)
+	l.pos += Pos(i + len(rightComment))
 	l.ignore()
 	return lexCode
 }
