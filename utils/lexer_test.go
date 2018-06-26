@@ -6,40 +6,62 @@ import (
 )
 
 var tokenNames = map[tokenType]string{
-	tokenError:        "error",
-	tokenBool:         "boolean",
-	tokenEquals:       "=",
-	tokenDoubleEquals: "==",
-	tokenNotEquals:    "!=",
-	tokenLogicalNot:   "!",
-	tokenEOF:          "EOF",
-	tokenProperty:     "property",
-	tokenIdentifier:   "identifier",
-	tokenLeftParen:    "(",
-	tokenRightParan:   ")",
-	tokenLeftBrace:    "{",
-	tokenRightBrace:   "}",
+	tokenError:       "error",
+	tokenEOF:         "EOF",
+	tokenProperty:    "property",
+	tokenIdentifier:  "identifier",
+	tokenLeftParen:   "(",
+	tokenRightParan:  ")",
+	tokenLeftBrace:   "{",
+	tokenRightBrace:  "}",
+	tokenLeftSquare:  "[",
+	tokenRightSquare: "]",
+	tokenColon:       ":",
+
+	// Literal tokens (not including object, array)
+	tokenBool:         "bool",
 	tokenNumber:       "number",
-	tokenOp:           "mathOp",
-	tokenSpace:        "space",
-	tokenNewline:      "newline",
 	tokenQuotedString: "string",
 	tokenRawString:    "raw string",
-	tokenOr:           "or",
-	tokenAnd:          "and",
+	tokenSpace:        "SPACE",
+	tokenNewline:      "NL",
 
-	// Keywords
-	tokenFunctionDef: "func",
-	tokenVar:         "var",
-	tokenIf:          "if",
-	tokenElse:        "else",
-	tokenElseIf:      "elseIf",
-	tokenFor:         "for",
-	tokenRange:       "range",
-	tokenNull:        "null",
-	// tokenReturn
-	// tokenIn
-	// tokenWhile
+	// Arithmetic Operators
+	tokenPlus:  "+",
+	tokenMinus: "-",
+	tokenDiv:   "/",
+	tokenMult:  "*",
+	tokenMod:   "%",
+	// Assignment Operators
+	tokenAssign:      "=",
+	tokenPlusAssign:  "+=",
+	tokenMinusAssign: "-=",
+	tokenDivAssign:   "/=",
+	tokenMultAssign:  "*=",
+	tokenModAssign:   "%=",
+	// Comparison Operators
+	tokenEquals:        "==",
+	tokenNotEquals:     "!=",
+	tokenGreater:       ">",
+	tokenSmaller:       "<",
+	tokenGreaterEquals: ">=",
+	tokenSmallerEquals: "<=",
+	// Logical Operators
+	tokenLogicalNot: "!",
+	tokenOr:         "||",
+	tokenAnd:        "&&",
+
+	// Keywords after all the rest
+	tokenFunc:   "func",
+	tokenVar:    "var",
+	tokenIf:     "if",
+	tokenElse:   "else",
+	tokenElseIf: "elif",
+	tokenFor:    "for",
+	tokenNull:   "null",
+	tokenWhile:  "while",
+	tokenReturn: "return",
+	tokenIn:     "in",
 }
 
 func (i tokenType) String() string {
@@ -58,20 +80,19 @@ func makeToken(typ tokenType, value string) token {
 var (
 	tknEOF     = makeToken(tokenEOF, "")
 	tknNL      = makeToken(tokenNewline, "\n")
-	tknEqls    = makeToken(tokenEquals, "=")
-	tknPlus    = makeToken(tokenOp, "+")
-	tknMinus   = makeToken(tokenOp, "-")
-	tknDiv     = makeToken(tokenOp, "/")
-	tknMult    = makeToken(tokenOp, "*")
-	tknMod     = makeToken(tokenOp, "%")
+	tknAssign  = makeToken(tokenAssign, "=")
+	tknPlus    = makeToken(tokenPlus, "+")
+	tknMinus   = makeToken(tokenMinus, "-")
+	tknDiv     = makeToken(tokenDiv, "/")
+	tknMult    = makeToken(tokenMult, "*")
+	tknMod     = makeToken(tokenMod, "%")
 	tknSpace   = makeToken(tokenSpace, " ")
-	tknFuncDef = makeToken(tokenFunctionDef, "func")
+	tknFuncDef = makeToken(tokenFunc, "func")
 	tknVar     = makeToken(tokenVar, "var")
 	tknIf      = makeToken(tokenIf, "if")
 	tknElse    = makeToken(tokenElse, "else")
 	tknElseIf  = makeToken(tokenElseIf, "elseIf")
 	tknFor     = makeToken(tokenFor, "for")
-	tknRange   = makeToken(tokenRange, "range")
 	tknNull    = makeToken(tokenNull, "null")
 )
 
@@ -101,7 +122,7 @@ var lexTests = []lexTestcase{
 		tknSpace,
 		makeToken(tokenIdentifier, "x"),
 		tknSpace,
-		tknEqls,
+		tknAssign,
 		tknSpace,
 		makeToken(tokenNumber, "1.2"),
 		tknSpace,
