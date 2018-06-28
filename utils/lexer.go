@@ -38,19 +38,10 @@ func (tok token) String() string {
 
 type tokenType int
 
-// What do we want to tokenise?
-// variables
-// Numbers Constants
-// Operations (+, -, *, /)
-// String constants
-// booleans
-// objects
-// arrays
-
 const (
 	tokenError tokenType = iota // error occurred; value is the text of error
 	tokenEOF
-	tokenProperty    // alphanumeric identifier starting with '.', used in accessing object properties
+	tokenProperty    // alphanumeric identifier starting with '.', used in accessing map's properties
 	tokenIdentifier  // alphanumeric identifier not starting with '.' may be a variable/function/class/struct
 	tokenLeftParen   // left parenthesis '('
 	tokenRightParan  // right parenthesis ')'
@@ -423,8 +414,10 @@ Loop:
 		switch r := l.next(); {
 		case r == '\n':
 			// Absorb and go to next iteration
-		case r == '\r' && l.peek() == '\n':
-			l.next() // advance after \n
+		case r == '\r':
+			if l.peek() == '\n' {
+				l.next() // advance after \n
+			}
 			// Absorb and go to next iteration
 		default:
 			l.backup()

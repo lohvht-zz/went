@@ -1,0 +1,88 @@
+(* NOTES!
+  ### Guidelines to convert grammars to source code ###
+  1. Each rule R, defined in the grammar, becomes a method with the same name
+    References to that rule becomes method calls R(), body of the method follows
+    the flow of the body of the rule using the very same guidelines
+  2. ORs (such as '(a1 | a2 | aN)' becomes if-elseIf-else statements
+  3. Optional groupings '(..)*' becomes a while statement that c an loop over 0
+    or more times
+  4. Each token reference T becomes a call to the method eat: eat(T). The way
+    eat() method works is that it consumes token T if it matches the current
+    lookahead token, then it gets a new token from the lexer and assigns that to
+    the currentToken internal variable
+ *)
+
+(* Start Symbols for grammar *)
+file_input: (NEWLINE | statement)*;
+interpreter_input: [statement_list] NEWLINE | compound_statement NEWLINE;
+
+(* Compound statements *)
+compound_statement: if_statement | while_statement | for_statement | funcdef;
+if_statement: "if" expression "{" suite "}"
+  ( "elif" expression "{" suite "}" )*
+  [ "else" "{" suite "}" ];
+while_statement: "while" expression "{" suite "}"
+  ["nobreak" "{" suite "}"];
+for_statement: "for" target_list "in" expression "{" suite "}" 
+  ["nobreak" "{" suite "}"];
+funcdef: "func" funcname "(" [parameter_list] ")" [":" integer] "{" suite "}";
+parameter_list: defparameter ("," defparameter)*;
+defparameter: parameter ["=" expression];
+parameter: identifier [":" expression];
+funcname: identifier;
+suite: statement_list | NEWLINE statement+;
+
+statement: statement_list NEWLINE | compound_statement;
+statement_list: simple_statement (";" simple_statement)* [";"];
+
+(* Simple Statements *)
+simple_statement: expression_statement
+  | assignment_statement
+  | augmented_assignment_statement
+  | return_statement
+  | break_statement
+  | continue_statement;
+
+expression_statement: expression;
+
+assignment_statement: (target_list "=")+ expression;
+target_list: target ("," target)*;
+target: identifier | propertyref | index | slicing;
+
+aug_assignment_statement: target augop expression;
+augop: "+=" | "-=" | "/=" | "*=" | "%=";
+
+return_statement: "return" [expression_list];
+break_statement: "break";
+continue_statement: "continue";
+
+(* Expressions and Literals  *)
+expression_list: expression ("," expression)* [","];
+
+primary: atom | propertyref | index | slicing | call;
+propertyref: primary "." identifier;
+index: primary "[" expression "]";
+
+slicing: primary "[" slice_list "]";
+slice_list: [expression] ":" [expression];
+call: primary "(" [argument_list] ")";
+argument_list: positional_arguments ["," named_arguments];
+positional_arguments: expression ("," expression)*;
+named_arguments: named_arg_item ("," named_arg_item)*;
+named_arg_item: identifier "=" expression;
+
+atom: identifier | literal | enclosure;
+enclosure: parenthesis_form | arr_display | map_display;
+
+literal: stringliteral | rawstringliteral | integer | float;
+
+parenthesis_form: "(" expression ")";
+
+arr_display: "[" [expression_list] "]";
+
+map_display: "{" key_datum_list "}";
+key_datum_list: key_datum ("," key_datum)* [","];
+key_datum: expression ":" expression;
+
+NEWLINE: "\n" | "\r\n";
+EOF: "EOF";
