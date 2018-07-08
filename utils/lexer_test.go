@@ -8,7 +8,6 @@ import (
 var tokenNames = map[tokenType]string{
 	tokenError:       "error",
 	tokenEOF:         "EOF",
-	tokenProperty:    "property",
 	tokenIdentifier:  "identifier",
 	tokenLeftParen:   "(",
 	tokenRightParan:  ")",
@@ -23,8 +22,6 @@ var tokenNames = map[tokenType]string{
 	tokenNumber:       "number",
 	tokenQuotedString: "string",
 	tokenRawString:    "raw string",
-	tokenSpace:        "SPACE",
-	tokenNewline:      "NL",
 
 	// Arithmetic Operators
 	tokenPlus:  "+",
@@ -53,7 +50,6 @@ var tokenNames = map[tokenType]string{
 
 	// Keywords after all the rest
 	tokenFunc:   "func",
-	tokenVar:    "var",
 	tokenIf:     "if",
 	tokenElse:   "else",
 	tokenElseIf: "elif",
@@ -78,22 +74,46 @@ func makeToken(typ tokenType, value string) token {
 }
 
 var (
-	tknEOF     = makeToken(tokenEOF, "")
-	tknNL      = makeToken(tokenNewline, "\n")
-	tknAssign  = makeToken(tokenAssign, "=")
-	tknPlus    = makeToken(tokenPlus, "+")
-	tknMinus   = makeToken(tokenMinus, "-")
-	tknDiv     = makeToken(tokenDiv, "/")
-	tknMult    = makeToken(tokenMult, "*")
-	tknMod     = makeToken(tokenMod, "%")
-	tknSpace   = makeToken(tokenSpace, " ")
+	tknEOF  = makeToken(tokenEOF, "")
+	tknSemi = makeToken(tokenSemicolon, ";")
+	// Operators
+	// Arithmetic Operators
+	tknPlus = makeToken(tokenPlus, "+")
+	tknMin  = makeToken(tokenMinus, "-")
+	tknDiv  = makeToken(tokenDiv, "/")
+	tknMult = makeToken(tokenMult, "*")
+	tknMod  = makeToken(tokenMod, "%")
+	// Assignment Operators
+	tknAss     = makeToken(tokenAssign, "=")
+	tknPlusAss = makeToken(tokenPlusAssign, "+=")
+	tknMinAss  = makeToken(tokenMinusAssign, "-=")
+	tknDivAss  = makeToken(tokenDivAssign, "/=")
+	tknMultAss = makeToken(tokenMultAssign, "*=")
+	tknModAss  = makeToken(tokenModAssign, "%=")
+	// Comparison Operators
+	tknEql  = makeToken(tokenEquals, "==")
+	tknNEql = makeToken(tokenNotEquals, "!=")
+	tknGr   = makeToken(tokenGreater, ">")
+	tknSm   = makeToken(tokenSmaller, "<")
+	tknGrEq = makeToken(tokenGreaterEquals, ">=")
+	tknSmEq = makeToken(tokenSmallerEquals, "<=")
+	// Logical Operators
+	tknLogicN = makeToken(tokenLogicalNot, "!")
+	tknOr     = makeToken(tokenOr, "||")
+	tknAnd    = makeToken(tokenAnd, "&&")
+
+	// keywords
 	tknFuncDef = makeToken(tokenFunc, "func")
-	tknVar     = makeToken(tokenVar, "var")
 	tknIf      = makeToken(tokenIf, "if")
 	tknElse    = makeToken(tokenElse, "else")
-	tknElseIf  = makeToken(tokenElseIf, "elseIf")
+	tknElseIf  = makeToken(tokenElseIf, "elif")
 	tknFor     = makeToken(tokenFor, "for")
 	tknNull    = makeToken(tokenNull, "null")
+	tknWhile   = makeToken(tokenWhile, "while")
+	tknReturn  = makeToken(tokenReturn, "return")
+	tknIn      = makeToken(tokenIn, "in")
+	tknBreak   = makeToken(tokenBreak, "break")
+	tknCont    = makeToken(tokenCont, "continue")
 )
 
 type lexTestcase struct {
@@ -107,28 +127,63 @@ var lexTests = []lexTestcase{
 	{"empty", "", []token{tknEOF}},
 	{"line comment", "//Hi", []token{tknEOF}},
 	{"line comment with \\n", "//Hello world\n", []token{
-		tknNL,
 		tknEOF,
 	}},
 	{"2 line comments with \\r\\n", "//Hello world\r\n//Howdy do", []token{
-		tknNL,
 		tknEOF,
 	}},
 	{"multiline comment", "/* This should be a comment\n more paragraphs*/", []token{
 		tknEOF,
 	}},
-	{"division parse", "var x = 1.2 /* 2 *// 2", []token{
-		tknVar,
-		tknSpace,
+	{"division parse", "x = 1.2 /* 2 *// 2", []token{
 		makeToken(tokenIdentifier, "x"),
-		tknSpace,
-		tknAssign,
-		tknSpace,
+		tknAss,
 		makeToken(tokenNumber, "1.2"),
-		tknSpace,
 		tknDiv,
-		tknSpace,
 		makeToken(tokenNumber, "2"),
+		tknEOF,
+	}},
+	{"keywords", "func if else elif for null while return break continue in", []token{
+		tknFuncDef,
+		tknIf,
+		tknElse,
+		tknElseIf,
+		tknFor,
+		tknNull,
+		tknWhile,
+		tknReturn,
+		tknBreak,
+		tknCont,
+		tknIn,
+		tknEOF,
+	}},
+	{"arithmetic operators", "+ - / * %", []token{
+		tknPlus,
+		tknMin,
+		tknDiv,
+		tknMult,
+		tknMod,
+		tknEOF,
+	}},
+	{"assignment operators", "= += -= /= *= %=", []token{
+		tknAss,
+		tknPlusAss,
+		tknMinAss,
+		tknDivAss,
+		tknMultAss,
+		tknModAss,
+		tknEOF,
+	}},
+	{"comparison and logical operators", "== != > < >= <= ! || &&", []token{
+		tknEql,
+		tknNEql,
+		tknGr,
+		tknSm,
+		tknGrEq,
+		tknSmEq,
+		tknLogicN,
+		tknOr,
+		tknAnd,
 		tknEOF,
 	}},
 	// Error Test Cases

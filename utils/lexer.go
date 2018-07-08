@@ -26,8 +26,6 @@ func (tok token) String() string {
 		return "EOF"
 	case tok.typ == tokenError:
 		return tok.value
-	case tok.typ == tokenSpace:
-		return "SPACE"
 	case tok.typ > tokenKeyword:
 		return fmt.Sprintf("<%s>", tok.value)
 		// case len(tok.value) > 10:
@@ -41,8 +39,8 @@ type tokenType int
 const (
 	tokenError tokenType = iota // error occurred; value is the text of error
 	tokenEOF
-	tokenProperty    // alphanumeric identifier starting with '.', used in accessing map's properties
-	tokenIdentifier  // alphanumeric identifier not starting with '.' may be a variable/function/class/struct
+	tokenDot         // Dot character '.'
+	tokenIdentifier  // alphanumeric identifier
 	tokenLeftParen   // left parenthesis '('
 	tokenRightParan  // right parenthesis ')'
 	tokenLeftBrace   // left brace '{'
@@ -50,14 +48,13 @@ const (
 	tokenLeftSquare  // left square bracket '['
 	tokenRightSquare // right square bracket ']'
 	tokenColon       // colon symbol ':'
+	tokenSemicolon   // semi colon symbol ';', used to terminate some grammars
 
 	// Literal tokens (not including object, array)
 	tokenBool         // boolean literal (true, false)
 	tokenNumber       // Integer64 or float64 numbers
 	tokenQuotedString // Singly quoted ('\'') strings, escaped using a single '\' char
 	tokenRawString    // tilde quoted ('`') strings, intepreted as-is, with no way of escaping
-	tokenSpace        // literally a space (' ')
-	tokenNewline      // newline token ('\r\n' or '\n')
 
 	// tokenOperators // Only used to delimit Operators below
 	// Operators
@@ -89,7 +86,6 @@ const (
 	// Keywords after all the rest
 	tokenKeyword // Only used to delimit the keywords below
 	tokenFunc    // 'func' keyword for function definition
-	tokenVar     // variable declaration using the keyword 'var'
 	tokenIf      // 'if' keyword
 	tokenElse    // 'else' keyword
 	tokenElseIf  // 'elif' keyword
@@ -98,19 +94,22 @@ const (
 	tokenWhile   // 'while' keyword
 	tokenReturn  // 'return' keyword
 	tokenIn      // 'in' keyword
+	tokenBreak   // 'break' keyword
+	tokenCont    // 'continue' keyword
 )
 
 var keyMap = map[string]tokenType{
-	"func":   tokenFunc,
-	"var":    tokenVar,
-	"if":     tokenIf,
-	"else":   tokenElse,
-	"elif":   tokenElseIf,
-	"for":    tokenFor,
-	"null":   tokenNull,
-	"while":  tokenWhile,
-	"return": tokenReturn,
-	"in":     tokenIn,
+	"func":     tokenFunc,
+	"if":       tokenIf,
+	"else":     tokenElse,
+	"elif":     tokenElseIf,
+	"for":      tokenFor,
+	"null":     tokenNull,
+	"while":    tokenWhile,
+	"return":   tokenReturn,
+	"in":       tokenIn,
+	"break":    tokenBreak,
+	"continue": tokenCont,
 }
 
 const eof = -1
@@ -119,14 +118,13 @@ const eof = -1
  * lexer Definition
  */
 type lexer struct {
-	name  string // name of the input; used only for error reporting
-	input string // string being scanned
-	// leftDelim        string // start of Action (based on template)
-	// rightDelim       string
+	name             string     // name of the input; used only for error reporting
+	input            string     // string being scanned
 	pos              Pos        // current position
 	start            Pos        // start position of this token
 	width            Pos        // width of the last rune read from input
 	tokens           chan token // channel of the scanned items
+	prevTokTyp       tokenType  // previous token type used for automatic semicolon insertion
 	paranthesisDepth int        // nesting depth of () brackets
 	bracesDepth      int        // nesting depth of {} brackets
 	squareDepth      int        //nesting depth of [] brackets
@@ -165,6 +163,7 @@ func (l *lexer) backup() {
 }
 
 // emit passes a token back to the client
+// this will also update the last seen emitted token type
 func (l *lexer) emit(typ tokenType) {
 	l.tokens <- token{typ, l.start, l.input[l.start:l.pos], l.line}
 	// Some of the tokens contain text internally, if so, count their newlines
@@ -173,6 +172,7 @@ func (l *lexer) emit(typ tokenType) {
 		l.line += strings.Count(l.input[l.start:l.pos], "\n")
 	}
 	l.start = l.pos
+	l.prevTokTyp = typ
 }
 
 // skips over the pending input before this point
@@ -226,11 +226,10 @@ func (l *lexer) run() {
 	close(l.tokens)
 }
 
+// does not accept leading +=
 func (l *lexer) scanNumber() bool {
-	// Optional leading sign
 	digits := "0123456789"
 	leadingSigns := "+-"
-	l.accept(leadingSigns)
 	l.acceptRun(digits)
 	// Decimal
 	if l.accept(".") {
@@ -241,7 +240,7 @@ func (l *lexer) scanNumber() bool {
 		l.accept(leadingSigns)
 		l.accept(digits)
 	}
-	// Next thing after everything else
+	// Check if the next rune is alphanumeric (if so then its not a number anymore)
 	if isAlphaNumeric(l.peek()) {
 		l.next()
 		return false
@@ -319,27 +318,19 @@ func lexCode(l *lexer) stateFunc {
 		if int(l.pos) < len(l.input) {
 			r := l.input[l.pos]
 			if r < '0' || r > '9' { // if its not a number
-				return lexProperty
+				l.emit(tokenDot)
+				return lexCode // emit the dot '.' and go back to lexCode
 			}
 		}
-		fallthrough // '.' can start a number
+		fallthrough // '.' can start a number, especially next rune is a number
 	case '0' <= r && r <= '9':
 		l.backup()
 		return lexNumber
-	case r == '+' || r == '-':
-		// Special lookahead for a number so we don't break l.backup()
-		if int(l.pos) < len(l.input) {
-			r := l.input[l.pos]
-			if '0' <= r && r <= '9' {
-				l.backup()
-				return lexNumber
-			}
-		}
-		fallthrough // '+', '-' is a math operation instead of the start of a number
-	case r == '*' || r == '%' || r == '=' || r == '!' || r == '<' || r == '>':
+	case r == '+' || r == '-' || r == '*' || r == '%' || // Math signs
+		r == '=' || r == '!' || r == '<' || r == '>': //
 		return lexOperator
 	case r == '/':
-		// Special lookahead for '*' or '/' so we don't break l.backup()
+		// Special lookahead for '*' or '/', for comment check
 		if int(l.pos) < len(l.input) {
 			switch r := l.input[l.pos]; {
 			case r == '/':
@@ -399,11 +390,12 @@ func lexEOF(l *lexer) stateFunc {
 }
 
 // lexSpace scans a run of space characters, One space has already been seen
+// Ignore spaces seen
 func lexSpace(l *lexer) stateFunc {
 	for isSpace(l.peek()) {
 		l.next()
 	}
-	l.emit(tokenSpace)
+	l.ignore()
 	return lexCode
 }
 
@@ -414,17 +406,24 @@ Loop:
 		switch r := l.next(); {
 		case r == '\n':
 			// Absorb and go to next iteration
-		case r == '\r':
-			if l.peek() == '\n' {
-				l.next() // advance after \n
-			}
-			// Absorb and go to next iteration
 		default:
 			l.backup()
 			break Loop
 		}
 	}
-	l.emit(tokenNewline)
+	// This is the automatic semicolon insertion for newlines, is inserted if the
+	// token before the newline fits one of the following rules:
+	// 1. the token is an identifier, or string/boolean/number literal
+	// 2. the token is a `break`, `return` or `continue`
+	// 3. token closes a bracket (either parenthesis, square brackets, or braces)
+	switch l.prevTokTyp {
+	case tokenIdentifier, tokenRawString, tokenQuotedString, tokenBool, tokenNumber, // identifiers and literals
+		tokenBreak, tokenCont, tokenReturn, // keywords such as 'break', 'continue', 'return'
+		tokenRightParan, tokenRightSquare, tokenRightBrace: // closing brackets ')', ']', '}'
+		l.emit(tokenSemicolon)
+	default:
+		l.ignore()
+	}
 	return lexCode
 }
 
@@ -521,26 +520,6 @@ func lexOperator(l *lexer) stateFunc {
 	return lexCode
 }
 
-// lexProperty scans an object accessed by its property: .Alphanumeric
-// the front '.' char has already been scanned
-func lexProperty(l *lexer) stateFunc {
-	if l.atIdentifierTerminator() { // If nothing interesting follows => '.'
-		return l.errorf("Bad character: %#U", l.input[l.pos])
-	}
-	var r rune
-	for {
-		if r = l.next(); !isAlphaNumeric(r) {
-			l.backup()
-			break
-		}
-	}
-	if !l.atIdentifierTerminator() {
-		return l.errorf("Bad character: %#U", r)
-	}
-	l.emit(tokenProperty)
-	return lexCode
-}
-
 // lexNumber scan for a decimal number, it isn't a perfect number scanner
 // for e.g. it accepts '.' and '089', but when its wrong the input is invalid
 func lexNumber(l *lexer) stateFunc {
@@ -611,11 +590,11 @@ func lexMultilineComment(l *lexer) stateFunc {
 // Utility Functions
 
 func isSpace(r rune) bool {
-	return r == ' ' || r == '\t'
+	return r == ' ' || r == '\t' || r == '\r'
 }
 
 func isEndOfLine(r rune) bool {
-	return r == '\r' || r == '\n'
+	return r == '\n'
 }
 
 func isAlphaNumeric(r rune) bool {
