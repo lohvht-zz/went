@@ -1,4 +1,4 @@
-package utils
+package lang
 
 import (
 	"fmt"
@@ -97,6 +97,69 @@ const (
 	tokenBreak   // 'break' keyword
 	tokenCont    // 'continue' keyword
 )
+
+var tokenNames = map[tokenType]string{
+	tokenError:       "error",
+	tokenEOF:         "EOF",
+	tokenIdentifier:  "identifier",
+	tokenLeftParen:   "(",
+	tokenRightParan:  ")",
+	tokenLeftBrace:   "{",
+	tokenRightBrace:  "}",
+	tokenLeftSquare:  "[",
+	tokenRightSquare: "]",
+	tokenColon:       ":",
+
+	// Literal tokens (not including object, array)
+	tokenBool:         "bool",
+	tokenNumber:       "number",
+	tokenQuotedString: "string",
+	tokenRawString:    "raw string",
+
+	// Arithmetic Operators
+	tokenPlus:  "+",
+	tokenMinus: "-",
+	tokenDiv:   "/",
+	tokenMult:  "*",
+	tokenMod:   "%",
+	// Assignment Operators
+	tokenAssign:      "=",
+	tokenPlusAssign:  "+=",
+	tokenMinusAssign: "-=",
+	tokenDivAssign:   "/=",
+	tokenMultAssign:  "*=",
+	tokenModAssign:   "%=",
+	// Comparison Operators
+	tokenEquals:        "==",
+	tokenNotEquals:     "!=",
+	tokenGreater:       ">",
+	tokenSmaller:       "<",
+	tokenGreaterEquals: ">=",
+	tokenSmallerEquals: "<=",
+	// Logical Operators
+	tokenLogicalNot: "!",
+	tokenOr:         "||",
+	tokenAnd:        "&&",
+
+	// Keywords after all the rest
+	tokenFunc:   "func",
+	tokenIf:     "if",
+	tokenElse:   "else",
+	tokenElseIf: "elif",
+	tokenFor:    "for",
+	tokenNull:   "null",
+	tokenWhile:  "while",
+	tokenReturn: "return",
+	tokenIn:     "in",
+}
+
+func (i tokenType) String() string {
+	s := tokenNames[i]
+	if s == "" {
+		return fmt.Sprintf("token%d", int(i))
+	}
+	return s
+}
 
 var keyMap = map[string]tokenType{
 	"func":     tokenFunc,
