@@ -6,11 +6,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/lohvht/nondescript/lang"
 )
 
 func main() {
 	// if len(os.Args) < 2 {
-	// 	fmt.Println("Entered Interpreter Mode")
+	// 	fmt.Println("Entering Interpreter Mode")
 	// }
 
 	filePtr := flag.String("f", "", "Script file to read and parse (Required)")
@@ -40,5 +42,10 @@ func main() {
 
 // parseInput takes in the string input and runs the language
 func parseInput(name, input string) {
-
+	p, err := lang.Parse(name, input)
+	if err != nil {
+		log.Fatal(err)
+	}
+	i := lang.NewInterpreter(p.Root)
+	i.Interpret()
 }

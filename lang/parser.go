@@ -1,4 +1,4 @@
-package utils
+package lang
 
 import (
 	"fmt"
@@ -51,20 +51,23 @@ func (tl *tokenList) peekBottom() token {
 
 // Parser parses the input string (file or otherwise) and creates an AST at its Root
 type Parser struct {
-	Name      string
-	Root      Node   // top-level root of the tree
-	input     string // input text to be parsed
-	tokeniser *lexer
-	tokens    tokenList // list of token lookaheads
+	Name         string
+	Root         Node   // top-level root of the tree
+	input        string // input text to be parsed
+	tokeniser    *lexer
+	tokens       tokenList // list of token lookaheads
+	currentToken token     // the local that we are currently looking at (Not a lookahead)
 }
 
 // next consumes and returns the next token
 func (p *Parser) next() token {
 	// take a token from the bottom of the stack
 	if !p.tokens.empty() {
-		return p.tokens.shift()
+		p.currentToken = p.tokens.shift()
+	} else {
+		p.currentToken = p.tokeniser.nextToken()
 	}
-	return p.tokeniser.nextToken()
+	return p.currentToken
 }
 
 // backup backs up a series of tokens to the bottom of the tokenList
@@ -90,7 +93,7 @@ func (p *Parser) peek() token {
 // errorf formats the error and terminates processing.
 func (p *Parser) errorf(format string, args ...interface{}) {
 	p.Root = nil
-	format = fmt.Sprintf("Syntax Error: %s:%d: %s", p.Name, p.tokens[0].line, format)
+	format = fmt.Sprintf("Syntax Error: %s:%d: %s", p.Name, p.currentToken.line, format)
 	panic(fmt.Errorf(format, args...))
 }
 
@@ -172,7 +175,7 @@ func (p *Parser) expr() Node {
 	node := p.term()
 	for p.peek().typ == tokenPlus || p.peek().typ == tokenMinus {
 		tkn := p.next()
-		node = NewBinaryOp(node, tkn, p.factor(), tkn.pos)
+		node = NewBinaryOp(node, tkn, p.term(), tkn.pos)
 	}
 	return node
 }
@@ -202,7 +205,7 @@ func (p *Parser) factor() Node {
 // Will complain and terminate if token is not an identifier, number, string,
 // null or boolean.
 func (p *Parser) atom() Node {
-	tkn := p.expectRange("atom check type", tokenIdentifier, tokenNumber,
+	tkn := p.expectRange("atom type check", tokenIdentifier, tokenNumber,
 		tokenRawString, tokenQuotedString, tokenNull, tokenBool,
 	)
 	switch tkn.typ {
