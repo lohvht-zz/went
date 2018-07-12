@@ -65,11 +65,40 @@ index: primary "[" expression "]";
 
 slicing: primary "[" slice_list "]";
 slice_list: [expression] ":" [expression];
+
 call: primary "(" [argument_list] ")";
 argument_list: positional_arguments ["," named_arguments];
 positional_arguments: expression ("," expression)*;
 named_arguments: named_arg_item ("," named_arg_item)*;
 named_arg_item: identifier "=" expression;
+
+(* 
+  x =
+    if <expr> { <expr> }
+    else { <expr> }
+
+ *)
+
+expression: if_statement | simple_expression;
+(* TODO: Make sure that the any <expression> rule used above for compound statements
+ are simple_expressions instead of expressions
+ *)
+simple_expression: or_test;
+
+or_test: and_test | or_test "||" and_test;
+and_test: not_test | and_test "&&" not_test;
+not_test: comparison | "!" not_test;
+
+comparison: a_expr ( comp_operator a_expr )*;
+comp_operator: "<" | ">" | "==" | ">=" | "<=" | "!="
+  ["not"] "in";
+
+m_expr: u_expr
+  | m_expr "*" u_expr
+  | m_expr "/" u_expr
+  | m_expr "%" u_expr;
+a_expr: m_expr | a_expr "+" m_expr | a_expr "-" m_expr;
+u_expr: primary | "-" u_expr | "+" u_expr;
 
 atom: identifier | literal | enclosure;
 enclosure: parenthesis_form | arr_display | map_display;

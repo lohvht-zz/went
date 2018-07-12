@@ -158,6 +158,8 @@ val4, val5, val6 = unpack2(a)
 Binary operators `+`, `-`, `*`, `/`, `%` to perform operation between 2 `numbers`. Unary operations `+`, `-`, `!`.
 
 Comparators such as `<`, `>`, `==`, `>=`, `<=`, `!=` can be used to compare things in nondescript, and it will always try to evaluate based on the value of the constructs that its comparing.
+
+Comparators like "not in" or "in" checks if object exists
 ```
 echo(1 + 2 < 4) // true
 arr1 = [1, 2, 3, 4]; 
