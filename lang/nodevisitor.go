@@ -1,4 +1,4 @@
-package utils
+package lang
 
 import (
 	"fmt"
@@ -6,39 +6,46 @@ import (
 
 // NodeWalker is the interface to implement for all walkers/visitors to the AST
 type NodeWalker interface {
-	visit(Node) // Generic visit function to marshal visits into the right Node types
 	visitNum(*NumberNode)
 	visitBinOp(*BinaryOpNode)
 	visitUnaryOp(*UnaryOpNode)
 }
 
-// NodeVisitor provides a default implementation for visit() over all other visitors
-// the default implementation of the other methods visitXxx should be overriden
-// when embedding NodeVisitor in other Visitor structs (If not overriden, visitXxx
-// will not do any action and terminate the walking there)
-type NodeVisitor struct {
-}
-
-func (nv *NodeVisitor) visit(node Node) {
+// Top level visit function, marshals the NodeWalker to their correct visitXxx
+// method
+func visit(node Node, nv NodeWalker) {
+	// fmt.Printf("nv type: %T", nv)
 	switch typedNode := node.(type) {
 	case *NumberNode:
+		// fmt.Printf("Go to number: %T %v", typedNode, typedNode)
 		nv.visitNum(typedNode)
 	case *BinaryOpNode:
+		// fmt.Printf("Go to bin op: %T %v", typedNode, typedNode)
 		nv.visitBinOp(typedNode)
 	case *UnaryOpNode:
+		// fmt.Printf("Go to un op: %T %v", typedNode, typedNode)
 		nv.visitUnaryOp(typedNode)
 	}
 }
-
-func (nv *NodeVisitor) visitNum(node *NumberNode)      {}
-func (nv *NodeVisitor) visitBinOp(node *BinaryOpNode)  {}
-func (nv *NodeVisitor) visitUnaryOp(node *UnaryOpNode) {}
 
 // Interpreter contains the already parsed inputs, as well as
 // the various already defined variables/functions
 // TODO: scopes
 type Interpreter struct {
-	NodeVisitor
+	Root Node
+}
+
+// NewInterpreter creates a new interpreter object with the root as the Node
+// being passed in
+func NewInterpreter(rootNode Node) *Interpreter {
+	i := &Interpreter{Root: rootNode}
+	return i
+}
+
+// Interpret walks the tree from its root, exploring its children while making
+// its walk downwards
+func (i *Interpreter) Interpret() {
+	visit(i.Root, i)
 }
 
 func (i *Interpreter) visitNum(node *NumberNode) {
@@ -46,13 +53,13 @@ func (i *Interpreter) visitNum(node *NumberNode) {
 }
 
 func (i *Interpreter) visitBinOp(node *BinaryOpNode) {
-	i.visit(node.left)
+	visit(node.left, i)
 	fmt.Print(node)
-	i.visit(node.right)
+	visit(node.right, i)
 	fmt.Println()
 }
 
 func (i *Interpreter) visitUnaryOp(node *UnaryOpNode) {
 	fmt.Print(node)
-	i.visit(node.expr)
+	visit(node.expr, i)
 }
