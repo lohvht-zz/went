@@ -52,11 +52,10 @@ func (tl *tokenList) peekBottom() token {
 // Parser parses the input string (file or otherwise) and creates an AST at its Root
 type Parser struct {
 	Name      string
-	Root      *Node  // top-level root of the tree
+	Root      Node   // top-level root of the tree
 	input     string // input text to be parsed
 	tokeniser *lexer
 	tokens    tokenList // list of token lookaheads
-	peekCount int
 }
 
 // next consumes and returns the next token
@@ -100,6 +99,32 @@ func (p *Parser) error(err error) {
 	p.errorf("%s", err)
 }
 
+// expect consumes the next token and guarantees it has the required type.
+func (p *Parser) expect(context string, expected tokenType) token {
+	tkn := p.next()
+	if tkn.typ != expected {
+		p.unexpected(context, tkn)
+	}
+	return tkn
+}
+
+// expectRange consumes the next token and guarantees it has one of the required types.
+func (p *Parser) expectRange(context string, expectedTypes ...tokenType) (tkn token) {
+	tkn = p.next()
+	for _, exTyp := range expectedTypes {
+		if tkn.typ == exTyp {
+			return
+		}
+	}
+	p.unexpected(context, tkn)
+	return
+}
+
+// unexpected complains about the token and terminates processing
+func (p *Parser) unexpected(context string, tkn token) {
+	p.errorf("unexpected %s in %s", tkn, context)
+}
+
 // recover is the handler that turns panics into returns from the top level
 // of Parse
 func (p *Parser) recover(errp *error) {
@@ -136,5 +161,59 @@ func Parse(name, input string) (parser *Parser, err error) {
 }
 
 func (p *Parser) parse() {
+	p.Root = p.expr()
+	p.expect("End of File", tokenEOF)
+}
 
+// Grammar rules
+
+// expr: term (("+" | "-") term)*;
+func (p *Parser) expr() Node {
+	node := p.term()
+	for p.peek().typ == tokenPlus || p.peek().typ == tokenMinus {
+		tkn := p.next()
+		node = NewBinaryOp(node, tkn, p.factor(), tkn.pos)
+	}
+	return node
+}
+
+// term: factor (("*" | "/" | "%") factor)*;
+func (p *Parser) term() Node {
+	node := p.factor()
+	for p.peek().typ == tokenMult || p.peek().typ == tokenDiv || p.peek().typ == tokenMod {
+		tkn := p.next()
+		node = NewBinaryOp(node, tkn, p.factor(), tkn.pos)
+	}
+	return node
+}
+
+// factor: ("+" | "-") factor | atom;
+func (p *Parser) factor() Node {
+	switch p.peek().typ {
+	case tokenPlus, tokenMinus:
+		tkn := p.next()
+		return NewUnaryOp(tkn, p.factor(), tkn.pos)
+	default:
+		return p.atom()
+	}
+}
+
+// atom: ID | NUM | STR | RAWSTR | "null" | "false" | "true";
+// Will complain and terminate if token is not an identifier, number, string,
+// null or boolean.
+func (p *Parser) atom() Node {
+	tkn := p.expectRange("atom check type", tokenIdentifier, tokenNumber,
+		tokenRawString, tokenQuotedString, tokenNull, tokenBool,
+	)
+	switch tkn.typ {
+	case tokenNumber:
+		number, err := NewNumber(tkn.pos, tkn.value)
+		if err != nil {
+			p.error(err)
+		}
+		return number
+	default:
+		p.unexpected("atom", tkn)
+		return nil
+	}
 }

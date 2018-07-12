@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -10,7 +9,11 @@ import (
 )
 
 func main() {
-	filePtr := flag.String("file", "", "Script file to read and parse (Required)")
+	// if len(os.Args) < 2 {
+	// 	fmt.Println("Entered Interpreter Mode")
+	// }
+
+	filePtr := flag.String("f", "", "Script file to read and parse (Required)")
 	flag.Parse()
 
 	if *filePtr == "" {
@@ -28,6 +31,14 @@ func main() {
 	}
 	s := string(b) // string value of input
 	name := filepath.Base(*filePtr)
-	fmt.Println(name, s)
-	// Parse()
+	parseInput(name, s)
+}
+
+// func interpreterMode() {
+
+// }
+
+// parseInput takes in the string input and runs the language
+func parseInput(name, input string) {
+
 }

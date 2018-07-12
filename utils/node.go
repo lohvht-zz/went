@@ -10,14 +10,10 @@ var textFormat = "%s" // change to "%q" in tests for better error messages
 
 // Node is an element from the parse tree
 type Node interface {
-	Type() NodeType
 	String() string
 	Position() Pos // byte position of start of the node, in full original input string
 	// Most nodes should also implement a CopyXxx method for each specific NodeType
 }
-
-// NodeType identifies the type of a parse tree node
-type NodeType int
 
 // Pos represents the byte position in the original input text from which
 // this template was parsed
@@ -29,23 +25,12 @@ func (p Pos) Position() Pos {
 	return p
 }
 
-// Type returns itself, provides an easy default implementation for
-// embedding in a Node. Embedded in all non-trivial Nodes
-func (typ NodeType) Type() NodeType {
-	return typ
-}
-
-// Outlines the NodeTypes available for this AST
-const (
-	NodeNumber NodeType = iota // Numerical constant
-	NodeArithExpr
-)
-
 // NumberNode holds a numerical constant: signed integer or float
 // value is parsed and stored under all the types that can be represent
 // the value.
+// NOTE: Do not create a Node directly using the struct definition, newXxx methods
+// exist to format a new node for you already.
 type NumberNode struct {
-	NodeType
 	Pos
 	IsInt   bool    // number has an int value
 	IsFloat bool    // number has floating point value
@@ -54,11 +39,11 @@ type NumberNode struct {
 	Text    string  // Original text representation from input
 }
 
-// newNumber creates a new NumberNode
+// NewNumber creates a new NumberNode
 // Should we include Uint? Complex numbers?
 // https://golang.org/src/text/template/parse/node.go ::: line 533
-func newNumber(pos Pos, text string) (*NumberNode, error) {
-	n := &NumberNode{NodeType: NodeNumber, Pos: pos, Text: text}
+func NewNumber(pos Pos, text string) (*NumberNode, error) {
+	n := &NumberNode{Pos: pos, Text: text}
 	i, err := strconv.ParseInt(text, 0, 64)
 	// If an int extraction succeeded, promote the float
 	if err == nil {
@@ -96,19 +81,49 @@ func (n *NumberNode) String() string {
 	return n.Text
 }
 
-// func (n *NumberNode) CopyNumber() NumberNode {
-// 	nn := new(NumberNode)
-// 	*nn = *n
-// 	return nn
-// }
-
-// ArithExprNode holds the left and right nodes for a basic mathematical expression
-// such as *, /,
-type ArithExprNode struct {
-	NodeType
+// BinaryOpNode holds a binary operator between a left and right node
+// such operations can include the following:
+// Arithmetic: "+", "-", "/", "*", "%"
+// Comparison: "==", "!=", "<", "<=", ">", ">="
+// Membership check: "!in", "in"
+// Logical Binary Operator: "||", "&&"
+// NOTE: Do not create a Node directly using the struct definition, newXxx methods
+// exist to format a new node for you already.
+type BinaryOpNode struct {
 	Pos
-	Op        string
-	Text      string // Original text representation from input
-	leftNode  Node
-	rightNode Node
+	Op    token
+	left  Node
+	right Node
+}
+
+// NewBinaryOp creates a new BinaryOpNode
+func NewBinaryOp(left Node, op token, right Node, pos Pos) *BinaryOpNode {
+	n := &BinaryOpNode{Pos: pos}
+	n.left = left
+	n.Op = op
+	n.right = right
+	return n
+}
+
+func (n *BinaryOpNode) String() string {
+	return n.Op.String()
+}
+
+// UnaryOpNode holds a unary operator as well as an expression node
+type UnaryOpNode struct {
+	Pos
+	Op   token
+	expr Node
+}
+
+// NewUnaryOp creates a new UnaryOpNode
+func NewUnaryOp(op token, expr Node, pos Pos) *UnaryOpNode {
+	n := &UnaryOpNode{Pos: pos}
+	n.Op = op
+	n.expr = expr
+	return n
+}
+
+func (n *UnaryOpNode) String() string {
+	return n.Op.String()
 }
