@@ -6,9 +6,14 @@ import (
 
 // NodeWalker is the interface to implement for all walkers/visitors to the AST
 type NodeWalker interface {
-	visitNum(*NumberNode)
-	visitBinOp(*BinaryOpNode)
+	// Binary Operations
+	visitAdd(*AddNode)
 	visitUnaryOp(*UnaryOpNode)
+	// visit literals
+	visitNum(*NumberNode)
+	visitStr(*StringNode)
+	visitNull(*NullNode)
+	visitBool(*BoolNode)
 }
 
 // Top level visit function, marshals the NodeWalker to their correct visitXxx
@@ -16,15 +21,18 @@ type NodeWalker interface {
 func visit(node Node, nv NodeWalker) {
 	// fmt.Printf("nv type: %T", nv)
 	switch typedNode := node.(type) {
-	case *NumberNode:
-		// fmt.Printf("Go to number: %T %v", typedNode, typedNode)
-		nv.visitNum(typedNode)
-	case *BinaryOpNode:
-		// fmt.Printf("Go to bin op: %T %v", typedNode, typedNode)
-		nv.visitBinOp(typedNode)
+	case *AddNode:
+		nv.visitAdd(typedNode)
 	case *UnaryOpNode:
-		// fmt.Printf("Go to un op: %T %v", typedNode, typedNode)
 		nv.visitUnaryOp(typedNode)
+	case *NumberNode:
+		nv.visitNum(typedNode)
+	case *StringNode:
+		nv.visitStr(typedNode)
+	case *NullNode:
+		nv.visitNull(typedNode)
+	case *BoolNode:
+		nv.visitBool(typedNode)
 	}
 }
 
@@ -48,11 +56,7 @@ func (i *Interpreter) Interpret() {
 	visit(i.Root, i)
 }
 
-func (i *Interpreter) visitNum(node *NumberNode) {
-	fmt.Print(node.Float64)
-}
-
-func (i *Interpreter) visitBinOp(node *BinaryOpNode) {
+func (i *Interpreter) visitAdd(node *AddNode) {
 	visit(node.left, i)
 	fmt.Print(node)
 	visit(node.right, i)
@@ -62,4 +66,20 @@ func (i *Interpreter) visitBinOp(node *BinaryOpNode) {
 func (i *Interpreter) visitUnaryOp(node *UnaryOpNode) {
 	fmt.Print(node)
 	visit(node.expr, i)
+}
+
+func (i *Interpreter) visitNum(node *NumberNode) {
+	fmt.Print(node.Float64)
+}
+
+func (i *Interpreter) visitStr(node *StringNode) {
+	fmt.Print(node.Value)
+}
+
+func (i *Interpreter) visitNull(node *NullNode) {
+	fmt.Print(node.Value)
+}
+
+func (i *Interpreter) visitBool(node *BoolNode) {
+	fmt.Print(node.Value)
 }

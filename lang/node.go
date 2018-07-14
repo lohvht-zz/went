@@ -12,7 +12,6 @@ var textFormat = "%s" // change to "%q" in tests for better error messages
 type Node interface {
 	String() string
 	Position() Pos // byte position of start of the node, in full original input string
-	// Most nodes should also implement a CopyXxx method for each specific NodeType
 }
 
 // Pos represents the byte position in the original input text from which
@@ -25,11 +24,178 @@ func (p Pos) Position() Pos {
 	return p
 }
 
-// NumberNode holds a numerical constant: signed integer or float
-// value is parsed and stored under all the types that can be represent
-// the value.
+// binaryOpNode holds a binary operator between a left and right node
+// This struct is meant to be embedded within all other binary operation
+// structs
+// Logical Binary Operator: "||", "&&"
 // NOTE: Do not create a Node directly using the struct definition, newXxx methods
 // exist to format a new node for you already.
+type binaryOpNode struct {
+	Pos
+	left  Node
+	right Node
+}
+
+// Arithmetic Binary Operators
+
+// AddNode holds a '+' operator between its 2 children
+type AddNode struct {
+	*binaryOpNode
+}
+
+// newAdd returns a pointer to a AddNode
+func newAdd(left Node, right Node, pos Pos) *AddNode {
+	return &AddNode{&binaryOpNode{left: left, right: right, Pos: pos}}
+}
+
+func (n *AddNode) String() string { return "+" }
+
+// MinusNode holds a '-' operator between its 2 children
+type MinusNode struct {
+	*binaryOpNode
+}
+
+// newMinus returns a pointer to a MinusNode
+func newMinus(left Node, right Node, pos Pos) *MinusNode {
+	return &MinusNode{&binaryOpNode{left: left, right: right, Pos: pos}}
+}
+
+func (n *MinusNode) String() string { return "-" }
+
+// MultNode holds a '*' operator between its 2 children
+type MultNode struct {
+	*binaryOpNode
+}
+
+// newMult returns a pointer to a MultNode
+func newMult(left Node, right Node, pos Pos) *MultNode {
+	return &MultNode{&binaryOpNode{left: left, right: right, Pos: pos}}
+}
+
+func (n *MultNode) String() string { return "*" }
+
+// DivNode holds a '/' operator between its 2 children
+type DivNode struct {
+	*binaryOpNode
+}
+
+// newDiv returns a pointer to a DivNode
+func newDiv(left Node, right Node, pos Pos) *DivNode {
+	return &DivNode{&binaryOpNode{left: left, right: right, Pos: pos}}
+}
+
+func (n *DivNode) String() string { return "/" }
+
+// ModNode holds a '%' operator between its 2 children
+type ModNode struct {
+	*binaryOpNode
+}
+
+// newMod returns a pointer to a ModNode
+func newMod(left Node, right Node, pos Pos) *ModNode {
+	return &ModNode{&binaryOpNode{left: left, right: right, Pos: pos}}
+}
+
+func (n *ModNode) String() string { return "%" }
+
+// Comparative Binary Operators
+
+// EqNode holds either the '!=' or '==' operator between its 2 children
+type EqNode struct {
+	*binaryOpNode
+	IsNot bool
+}
+
+// newEq returns a pointer to a EqNode
+func newEq(left Node, right Node, pos Pos, isNot bool) *EqNode {
+	return &EqNode{binaryOpNode: &binaryOpNode{left: left, right: right, Pos: pos}, IsNot: isNot}
+}
+
+func (n *EqNode) String() string {
+	if n.IsNot {
+		return "!="
+	}
+	return "=="
+}
+
+// SmNode holds either the '<' or '<=' operator between its 2 children
+type SmNode struct {
+	*binaryOpNode
+	AndEq bool
+}
+
+// newSm returns a pointer to a SmNode
+func newSm(left Node, right Node, pos Pos, andEq bool) *SmNode {
+	return &SmNode{binaryOpNode: &binaryOpNode{left: left, right: right, Pos: pos}, AndEq: andEq}
+}
+
+func (n *SmNode) String() string {
+	if n.AndEq {
+		return "<="
+	}
+	return "<"
+}
+
+// GrNode holds either the '<' or '<=' operator between its 2 children
+type GrNode struct {
+	*binaryOpNode
+	AndEq bool
+}
+
+// newGr returns a pointer to a GrNode
+func newGr(left Node, right Node, pos Pos, andEq bool) *GrNode {
+	return &GrNode{binaryOpNode: &binaryOpNode{left: left, right: right, Pos: pos}, AndEq: andEq}
+}
+
+func (n *GrNode) String() string {
+	if n.AndEq {
+		return ">="
+	}
+	return ">"
+}
+
+// InNode holds either the '!in' or 'in' operator between its 2 children
+type InNode struct {
+	*binaryOpNode
+	IsNot bool
+}
+
+// newIn returns a pointer to a InNode
+func newIn(left Node, right Node, pos Pos, isNot bool) *InNode {
+	return &InNode{binaryOpNode: &binaryOpNode{left: left, right: right, Pos: pos}, IsNot: isNot}
+}
+
+func (n *InNode) String() string {
+	if n.IsNot {
+		return "!in"
+	}
+	return "in"
+}
+
+// Unary Operators
+
+// UnaryOpNode holds a unary operator as well as an expression node
+type UnaryOpNode struct {
+	Pos
+	Op   token
+	expr Node
+}
+
+// newUnaryOp creates a new UnaryOpNode
+func newUnaryOp(op token, expr Node, pos Pos) *UnaryOpNode {
+	n := &UnaryOpNode{Pos: pos}
+	n.Op = op
+	n.expr = expr
+	return n
+}
+
+func (n *UnaryOpNode) String() string {
+	return n.Op.String()
+}
+
+// Literals
+
+// NumberNode holds a numerical constant: signed integer or float
 type NumberNode struct {
 	Pos
 	IsInt   bool    // number has an int value
@@ -39,10 +205,8 @@ type NumberNode struct {
 	Text    string  // Original text representation from input
 }
 
-// NewNumber creates a new NumberNode
-// Should we include Uint? Complex numbers?
-// https://golang.org/src/text/template/parse/node.go ::: line 533
-func NewNumber(pos Pos, text string) (*NumberNode, error) {
+// newNumber creates a new pointer to the NumberNode
+func newNumber(pos Pos, text string) (*NumberNode, error) {
 	n := &NumberNode{Pos: pos, Text: text}
 	i, err := strconv.ParseInt(text, 0, 64)
 	// If an int extraction succeeded, promote the float
@@ -72,7 +236,7 @@ func NewNumber(pos Pos, text string) (*NumberNode, error) {
 		}
 	}
 	if !n.IsInt && !n.IsFloat {
-		return nil, fmt.Errorf("Illegal number syntax: %q", text)
+		return nil, fmt.Errorf("illegal number syntax: %q", text)
 	}
 	return n, nil
 }
@@ -81,49 +245,53 @@ func (n *NumberNode) String() string {
 	return n.Text
 }
 
-// BinaryOpNode holds a binary operator between a left and right node
-// such operations can include the following:
-// Arithmetic: "+", "-", "/", "*", "%"
-// Comparison: "==", "!=", "<", "<=", ">", ">="
-// Membership check: "!in", "in"
-// Logical Binary Operator: "||", "&&"
-// NOTE: Do not create a Node directly using the struct definition, newXxx methods
-// exist to format a new node for you already.
-type BinaryOpNode struct {
+// StringNode holds a string literal: both raw and quoted
+type StringNode struct {
 	Pos
-	Op    token
-	left  Node
-	right Node
+	Value string
 }
 
-// NewBinaryOp creates a new BinaryOpNode
-func NewBinaryOp(left Node, op token, right Node, pos Pos) *BinaryOpNode {
-	n := &BinaryOpNode{Pos: pos}
-	n.left = left
-	n.Op = op
-	n.right = right
-	return n
+// newString creates a new pointer to the StringNode
+func newString(pos Pos, text string) *StringNode {
+	return &StringNode{Pos: pos, Value: text}
 }
 
-func (n *BinaryOpNode) String() string {
-	return n.Op.String()
+func (n *StringNode) String() string {
+	return n.Value
 }
 
-// UnaryOpNode holds a unary operator as well as an expression node
-type UnaryOpNode struct {
+// NullNode holds a null literal
+type NullNode struct {
 	Pos
-	Op   token
-	expr Node
+	Value string
 }
 
-// NewUnaryOp creates a new UnaryOpNode
-func NewUnaryOp(op token, expr Node, pos Pos) *UnaryOpNode {
-	n := &UnaryOpNode{Pos: pos}
-	n.Op = op
-	n.expr = expr
-	return n
+// newNull creates a new pointer to the NullNode
+func newNull(pos Pos, text string) *NullNode {
+	return &NullNode{Pos: pos, Value: text}
 }
 
-func (n *UnaryOpNode) String() string {
-	return n.Op.String()
+func (n *NullNode) String() string {
+	return n.Value
 }
+
+// BoolNode holds a boolean literal
+type BoolNode struct {
+	Pos
+	Value bool
+	Text  string
+}
+
+// newBool creates a new pointer to the BoolNode
+func newBool(pos Pos, text string, tknTyp tokenType) (*BoolNode, error) {
+	switch tknTyp {
+	case tokenTrue:
+		return &BoolNode{Pos: pos, Value: true, Text: text}, nil
+	case tokenFalse:
+		return &BoolNode{Pos: pos, Value: false, Text: text}, nil
+	default:
+		return nil, fmt.Errorf("illegal bool syntax: %q", text)
+	}
+}
+
+func (n *BoolNode) String() string { return n.Text }

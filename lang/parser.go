@@ -164,18 +164,63 @@ func Parse(name, input string) (parser *Parser, err error) {
 }
 
 func (p *Parser) parse() {
-	p.Root = p.expr()
+	p.Root = p.smExpr()
 	p.expect("End of File", tokenEOF)
 }
 
 // Grammar rules
 
-// expr: term (("+" | "-") term)*;
-func (p *Parser) expr() Node {
+// func (p *Parser) notTest() Node {
+// 	tkn := p.next()
+// }
+
+// comparison: smExpr (compOp smExpr)*;
+// compOp: compOp: "==" | "!=" | "<" | ">" | "<=" | ">=" | ["!"] "in";
+func (p *Parser) comparison() Node {
+	node := p.smExpr()
+Loop:
+	for {
+		typ := p.peek().typ
+		switch typ {
+		case tokenEquals, tokenNotEquals:
+			tkn := p.next()
+			node = newEq(node, p.smExpr(), tkn.pos, tkn.typ == tokenNotEquals)
+		case tokenSmaller, tokenSmallerEquals:
+			tkn := p.next()
+			node = newSm(node, p.smExpr(), tkn.pos, tkn.typ == tokenSmallerEquals)
+		case tokenGreater, tokenGreaterEquals:
+			tkn := p.next()
+			node = newGr(node, p.smExpr(), tkn.pos, tkn.typ == tokenGreaterEquals)
+		case tokenIn:
+			tkn := p.next()
+			node = newIn(node, p.smExpr(), tkn.pos, false)
+		case tokenLogicalNot:
+			tkn := p.next()
+			// Expects the next token to be tokenIn
+			p.expect("not operator in comparison rule", tokenIn)
+			node = newIn(node, p.smExpr(), tkn.pos, true)
+		default:
+			break Loop
+		}
+	}
+	return node
+}
+
+// smExpr: term (("+" | "-") term)*;
+func (p *Parser) smExpr() Node {
 	node := p.term()
-	for p.peek().typ == tokenPlus || p.peek().typ == tokenMinus {
-		tkn := p.next()
-		node = NewBinaryOp(node, tkn, p.term(), tkn.pos)
+Loop:
+	for {
+		switch p.peek().typ {
+		case tokenPlus:
+			tkn := p.next()
+			node = newAdd(node, p.term(), tkn.pos)
+		case tokenMinus:
+			tkn := p.next()
+			node = newMinus(node, p.term(), tkn.pos)
+		default:
+			break Loop
+		}
 	}
 	return node
 }
@@ -183,9 +228,21 @@ func (p *Parser) expr() Node {
 // term: factor (("*" | "/" | "%") factor)*;
 func (p *Parser) term() Node {
 	node := p.factor()
-	for p.peek().typ == tokenMult || p.peek().typ == tokenDiv || p.peek().typ == tokenMod {
-		tkn := p.next()
-		node = NewBinaryOp(node, tkn, p.factor(), tkn.pos)
+Loop:
+	for {
+		switch p.peek().typ {
+		case tokenMult:
+			tkn := p.next()
+			node = newMult(node, p.term(), tkn.pos)
+		case tokenDiv:
+			tkn := p.next()
+			node = newDiv(node, p.term(), tkn.pos)
+		case tokenMod:
+			tkn := p.next()
+			node = newMod(node, p.term(), tkn.pos)
+		default:
+			break Loop
+		}
 	}
 	return node
 }
@@ -195,26 +252,39 @@ func (p *Parser) factor() Node {
 	switch p.peek().typ {
 	case tokenPlus, tokenMinus:
 		tkn := p.next()
-		return NewUnaryOp(tkn, p.factor(), tkn.pos)
+		return newUnaryOp(tkn, p.factor(), tkn.pos)
 	default:
 		return p.atom()
 	}
 }
 
-// atom: ID | NUM | STR | RAWSTR | "null" | "false" | "true";
+// atom: "[" [exprList] "]" | ID | NUM | STR | RAWSTR | "null" | "false" | "true";
 // Will complain and terminate if token is not an identifier, number, string,
 // null or boolean.
 func (p *Parser) atom() Node {
 	tkn := p.expectRange("atom type check", tokenIdentifier, tokenNumber,
-		tokenRawString, tokenQuotedString, tokenNull, tokenBool,
+		tokenRawString, tokenQuotedString, tokenNull, tokenFalse, tokenTrue,
+		// tokenRightSquare,
 	)
 	switch tkn.typ {
 	case tokenNumber:
-		number, err := NewNumber(tkn.pos, tkn.value)
+		n, err := newNumber(tkn.pos, tkn.value)
 		if err != nil {
 			p.error(err)
 		}
-		return number
+		return n
+	case tokenRawString, tokenQuotedString:
+		return newString(tkn.pos, tkn.value)
+	case tokenNull:
+		return newNull(tkn.pos, tkn.value)
+	case tokenFalse, tokenTrue:
+		n, err := newBool(tkn.pos, tkn.value, tkn.typ)
+		if err != nil {
+			p.error(err)
+		}
+		return n
+	// case tokenRightSquare: //TODO: TO BE IMPLEMENTED
+
 	default:
 		p.unexpected("atom", tkn)
 		return nil
