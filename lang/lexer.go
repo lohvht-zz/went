@@ -231,7 +231,7 @@ func (l *lexer) emit(typ tokenType) {
 	l.tokens <- token{typ, l.start, l.input[l.start:l.pos], l.line}
 	// Some of the tokens contain text internally, if so, count their newlines
 	switch typ {
-	case tokenRawString, tokenQuotedString:
+	case tokenRawString:
 		l.line += strings.Count(l.input[l.start:l.pos], "\n")
 	}
 	l.start = l.pos
@@ -315,7 +315,7 @@ func (l *lexer) scanNumber() bool {
 // termination character to appear after an identifier
 func (l *lexer) atIdentifierTerminator() bool {
 	r := l.peek()
-	if isSpace(r) || isEndOfLine(r) {
+	if isSpace(r) {
 		return true
 	}
 	switch r {
@@ -355,9 +355,6 @@ func lexCode(l *lexer) stateFunc {
 		return lexEOF
 	case isSpace(r):
 		return lexSpace
-	case isEndOfLine(r): // detects \r OR \n
-		l.backup()
-		return lexNewline
 	case r == ':':
 		l.emit(tokenColon)
 	case r == '|':
@@ -462,47 +459,15 @@ func lexSpace(l *lexer) stateFunc {
 	return lexCode
 }
 
-// lexNewline scans for a run of newline characters (either \r\n OR \n)
-func lexNewline(l *lexer) stateFunc {
-Loop:
-	for {
-		switch r := l.next(); {
-		case r == '\n':
-			// Absorb and go to next iteration
-		default:
-			l.backup()
-			break Loop
-		}
-	}
-	// This is the automatic semicolon insertion for newlines, is inserted if the
-	// token before the newline fits one of the following rules:
-	// 1. the token is an identifier, or string/boolean/number literal
-	// 2. the token is a `break`, `return` or `continue`
-	// 3. token closes a bracket (either parenthesis, square brackets, or braces)
-	switch l.prevTokTyp {
-	case tokenIdentifier, tokenRawString, tokenQuotedString, tokenBool, tokenNumber, // identifiers and literals
-		tokenBreak, tokenCont, tokenReturn, // keywords such as 'break', 'continue', 'return'
-		tokenRightParan, tokenRightSquare, tokenRightBrace: // closing brackets ')', ']', '}'
-		l.emit(tokenSemicolon)
-	default:
-		l.ignore()
-	}
-	return lexCode
-}
-
 // lexQuotedString scans a quoted string, can be escaped using the '\' character
 func lexQuotedString(l *lexer) stateFunc {
-	startLine := l.line
 Loop:
 	for {
 		switch l.next() {
 		case '\\': // single '\' character as escape character
-			if r := l.next(); r == eof {
-				// restore line number to where the open quote is by replacing the l.line
-				// Error out after that
-				l.line = startLine
-				return l.errorf("Unterminated Quoted String")
-			} // Else just absorb and continue consuming the rest of the string
+			if r := l.next(); r == '\n' || r == eof {
+				return l.errorf("unterminated quoted string")
+			}
 		case '"':
 			break Loop
 		}
@@ -653,11 +618,7 @@ func lexMultilineComment(l *lexer) stateFunc {
 // Utility Functions
 
 func isSpace(r rune) bool {
-	return r == ' ' || r == '\t' || r == '\r'
-}
-
-func isEndOfLine(r rune) bool {
-	return r == '\n'
+	return r == ' ' || r == '\t' || r == '\r' || r == '\n'
 }
 
 func isAlphaNumeric(r rune) bool {
