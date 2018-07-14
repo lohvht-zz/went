@@ -25,11 +25,9 @@ func (tok token) String() string {
 	case tok.typ == tokenEOF:
 		return "EOF"
 	case tok.typ == tokenError:
-		return tok.value
+		return fmt.Sprintf("<err: %s>", tok.value)
 	case tok.typ > tokenKeyword:
 		return fmt.Sprintf("<%s>", tok.value)
-		// case len(tok.value) > 10:
-		// 	return fmt.Sprintf("%.10q...", tok.value) // commented this, fullprint
 	}
 	return fmt.Sprintf("%q", tok.value)
 }
@@ -48,10 +46,10 @@ const (
 	tokenLeftSquare  // left square bracket '['
 	tokenRightSquare // right square bracket ']'
 	tokenColon       // colon symbol ':'
-	tokenSemicolon   // semi colon symbol ';', used to terminate some grammars
+	tokenSemicolon   // semi colon symbol ';'
+	tokenComma       // comma symbol ','
 
 	// Literal tokens (not including object, array)
-	tokenBool         // boolean literal (true, false)
 	tokenNumber       // Integer64 or float64 numbers
 	tokenQuotedString // Singly quoted ('\'') strings, escaped using a single '\' char
 	tokenRawString    // tilde quoted ('`') strings, intepreted as-is, with no way of escaping
@@ -91,6 +89,8 @@ const (
 	tokenElseIf  // 'elif' keyword
 	tokenFor     // 'for' keyword, for loops
 	tokenNull    // 'null' constant, treated as a keyword
+	tokenFalse   // 'false' constant, treated as a keyword
+	tokenTrue    // 'True' constant, treated as a keyword
 	tokenWhile   // 'while' keyword
 	tokenReturn  // 'return' keyword
 	tokenIn      // 'in' keyword
@@ -111,7 +111,6 @@ var tokenNames = map[tokenType]string{
 	tokenColon:       ":",
 
 	// Literal tokens (not including object, array)
-	tokenBool:         "bool",
 	tokenNumber:       "number",
 	tokenQuotedString: "string",
 	tokenRawString:    "raw string",
@@ -148,6 +147,8 @@ var tokenNames = map[tokenType]string{
 	tokenElseIf: "elif",
 	tokenFor:    "for",
 	tokenNull:   "null",
+	tokenFalse:  "false",
+	tokenTrue:   "true",
 	tokenWhile:  "while",
 	tokenReturn: "return",
 	tokenIn:     "in",
@@ -168,6 +169,8 @@ var keyMap = map[string]tokenType{
 	"elif":     tokenElseIf,
 	"for":      tokenFor,
 	"null":     tokenNull,
+	"false":    tokenFalse,
+	"true":     tokenTrue,
 	"while":    tokenWhile,
 	"return":   tokenReturn,
 	"in":       tokenIn,
@@ -175,23 +178,52 @@ var keyMap = map[string]tokenType{
 	"continue": tokenCont,
 }
 
+var parenMap = map[rune]rune{
+	')': '(',
+	']': '[',
+	'}': '{',
+}
+
 const eof = -1
 
 /**
  * lexer Definition
  */
+
+type runeStack []rune
+
+func (rs *runeStack) empty() bool {
+	return len(*rs) == 0
+}
+
+// push a rune to the top of the stack
+func (rs *runeStack) push(r rune) {
+	*rs = append(*rs, r)
+}
+
+// pop removes a rune from the top of the stack, you should always check if
+// the stack is empty prior to popping
+func (rs *runeStack) pop() (r rune) {
+	r, *rs = (*rs)[len(*rs)-1], (*rs)[:len(*rs)-1]
+	return
+}
+
+// peek looks at the top of the stack you should always check if the stack is
+// empty prior to peeking
+func (rs *runeStack) peek() rune {
+	return (*rs)[len(*rs)-1]
+}
+
 type lexer struct {
-	name             string     // name of the input; used only for error reporting
-	input            string     // string being scanned
-	pos              Pos        // current position
-	start            Pos        // start position of this token
-	width            Pos        // width of the last rune read from input
-	tokens           chan token // channel of the scanned items
-	prevTokTyp       tokenType  // previous token type used for automatic semicolon insertion
-	paranthesisDepth int        // nesting depth of () brackets
-	bracesDepth      int        // nesting depth of {} brackets
-	squareDepth      int        //nesting depth of [] brackets
-	line             int        // 1 + number of newlines seen
+	name         string     // name of the input; used only for error reporting
+	input        string     // string being scanned
+	pos          Pos        // current position
+	start        Pos        // start position of this token
+	width        Pos        // width of the last rune read from input
+	tokens       chan token // channel of the scanned items
+	prevTokTyp   tokenType  // previous token type used for automatic semicolon insertion
+	bracketStack runeStack  // a stack of runes used to keep track of all '(', '[' and '{'
+	line         int        // 1 + number of newlines seen
 }
 
 // next returns the next rune in the input
@@ -303,7 +335,8 @@ func (l *lexer) scanNumber() bool {
 		l.accept(leadingSigns)
 		l.accept(digits)
 	}
-	// Check if the next rune is alphanumeric (if so then its not a number anymore)
+	// Check if the next rune is alphanumeric
+	// The next number can't be digits as we have already scanned all the digits
 	if isAlphaNumeric(l.peek()) {
 		l.next()
 		return false
@@ -320,11 +353,10 @@ func (l *lexer) atIdentifierTerminator() bool {
 	}
 	switch r {
 	case
-		eof,      // EOF character
+		eof, '=', // EOF character and assignment/declaration ('='), or equality check ('==')
 		'.', ',', // DOT ('.') to denote .property, or commas
 		'|', '&', // OR ('||'), or AND ('&&')
-		'=',      // assignment/declaration ('='), or equality check ('==')
-		')', '(', // Parenthesis '(', ')'
+		'(', ')', '[', ']', '{', '}', // Parenthesis, square, curly and normal
 		'+', '-', '/', '*', '%': // Math operator signs, or start of a comment ('//', '/*')
 		return true
 	}
@@ -357,17 +389,19 @@ func lexCode(l *lexer) stateFunc {
 		return lexSpace
 	case r == ':':
 		l.emit(tokenColon)
+	case r == ',':
+		l.emit(tokenComma)
 	case r == '|':
 		if l.next() == '|' {
 			l.emit(tokenOr)
 		} else {
-			l.errorf("Expected '|' token")
+			l.errorf("expected token %#U", r)
 		}
 	case r == '&':
 		if l.next() == '&' {
 			l.emit(tokenAnd)
 		} else {
-			l.errorf("Expected '&' token")
+			l.errorf("expected token %#U", r)
 		}
 	case r == '"':
 		return lexQuotedString
@@ -386,8 +420,8 @@ func lexCode(l *lexer) stateFunc {
 	case '0' <= r && r <= '9':
 		l.backup()
 		return lexNumber
-	case r == '+' || r == '-' || r == '*' || r == '%' || // Math signs
-		r == '=' || r == '!' || r == '<' || r == '>': //
+	case r == '+', r == '-', r == '*', r == '%', // Math signs
+		r == '=', r == '!', r == '<', r == '>': //
 		return lexOperator
 	case r == '/':
 		// Special lookahead for '*' or '/', for comment check
@@ -403,32 +437,29 @@ func lexCode(l *lexer) stateFunc {
 	case isAlphaNumeric(r):
 		l.backup()
 		return lexIdentifier
-	case r == '(':
-		l.emit(tokenLeftParen)
-		l.paranthesisDepth++
-	case r == ')':
-		l.emit(tokenRightParan)
-		l.paranthesisDepth--
-		if l.paranthesisDepth < 0 {
-			return l.errorf("Unexpected right parenthesis %#U", r)
+	case r == '(', r == '{', r == '[': // opening brackets
+		switch r {
+		case '(':
+			l.emit(tokenLeftParen)
+		case '{':
+			l.emit(tokenLeftBrace)
+		case '[':
+			l.emit(tokenLeftSquare)
 		}
-	case r == '{':
-		l.emit(tokenLeftBrace)
-		l.bracesDepth++
-	case r == '}':
-		l.emit(tokenRightBrace)
-		l.bracesDepth--
-		if l.bracesDepth < 0 {
-			return l.errorf("Unexpected right brace %#U", r)
+		l.bracketStack.push(r)
+	case r == ')', r == '}', r == ']':
+		if l.bracketStack.empty() {
+			return l.errorf("unexpected right paren %#U", r)
+		} else if toCheck := l.bracketStack.pop(); toCheck != parenMap[r] {
+			return l.errorf("unexpected right paren %#U", r)
 		}
-	case r == '[':
-		l.emit(tokenLeftSquare)
-		l.squareDepth++
-	case r == ']':
-		l.emit(tokenRightSquare)
-		l.squareDepth--
-		if l.squareDepth < 0 {
-			return l.errorf("Unexpected right square bracket %#U", r)
+		switch r {
+		case ')':
+			l.emit(tokenRightParan)
+		case '}':
+			l.emit(tokenRightBrace)
+		case ']':
+			l.emit(tokenRightSquare)
 		}
 	default:
 		return l.errorf("Unrecognised character in code: %#U", r)
@@ -438,12 +469,9 @@ func lexCode(l *lexer) stateFunc {
 
 // lexEOF emits the EOF token and handles the termination of the main lexCode loop
 func lexEOF(l *lexer) stateFunc {
-	if l.paranthesisDepth != 0 {
-		return l.errorf("Unclosed left paranthesis '('")
-	} else if l.bracesDepth != 0 {
-		return l.errorf("Unclosed left brace '{'")
-	} else if l.squareDepth != 0 {
-		return l.errorf("Unclosed left square bracket '['")
+	if !l.bracketStack.empty() {
+		r := l.bracketStack.pop()
+		return l.errorf("unclosed left paren: %#U", r)
 	}
 	l.emit(tokenEOF)
 	return nil
@@ -574,8 +602,6 @@ Loop:
 			switch {
 			case keyMap[word] > tokenKeyword:
 				l.emit(keyMap[word])
-			case word == "true", word == "false":
-				l.emit(tokenBool)
 			default:
 				l.emit(tokenIdentifier)
 			}
