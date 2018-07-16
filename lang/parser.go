@@ -164,15 +164,42 @@ func Parse(name, input string) (parser *Parser, err error) {
 }
 
 func (p *Parser) parse() {
-	p.Root = p.smExpr()
+	p.Root = p.orEval()
 	p.expect("End of File", tokenEOF)
 }
 
 // Grammar rules
 
-// func (p *Parser) notTest() Node {
-// 	tkn := p.next()
-// }
+// orEval: andEval ("||" orEval)*;
+func (p *Parser) orEval() Node {
+	node := p.notEval()
+	for p.peek().typ == tokenOr {
+		tkn := p.next()
+		node = newOr(node, p.notEval(), tkn.pos)
+	}
+	return node
+}
+
+// andEval: notEval ("&&" notEval)*;
+func (p *Parser) andEval() Node {
+	node := p.notEval()
+	for p.peek().typ == tokenAnd {
+		tkn := p.next()
+		node = newAnd(node, p.notEval(), tkn.pos)
+	}
+	return node
+}
+
+// notEval: "!" notEval | comparison;
+func (p *Parser) notEval() Node {
+	switch p.peek().typ {
+	case tokenLogicalNot:
+		tkn := p.next()
+		return newNot(p.notEval(), tkn.pos)
+	default:
+		return p.comparison()
+	}
+}
 
 // comparison: smExpr (compOp smExpr)*;
 // compOp: compOp: "==" | "!=" | "<" | ">" | "<=" | ">=" | ["!"] "in";
@@ -180,8 +207,7 @@ func (p *Parser) comparison() Node {
 	node := p.smExpr()
 Loop:
 	for {
-		typ := p.peek().typ
-		switch typ {
+		switch p.peek().typ {
 		case tokenEquals, tokenNotEquals:
 			tkn := p.next()
 			node = newEq(node, p.smExpr(), tkn.pos, tkn.typ == tokenNotEquals)
@@ -217,7 +243,7 @@ Loop:
 			node = newAdd(node, p.term(), tkn.pos)
 		case tokenMinus:
 			tkn := p.next()
-			node = newMinus(node, p.term(), tkn.pos)
+			node = newSubtract(node, p.term(), tkn.pos)
 		default:
 			break Loop
 		}
@@ -233,13 +259,13 @@ Loop:
 		switch p.peek().typ {
 		case tokenMult:
 			tkn := p.next()
-			node = newMult(node, p.term(), tkn.pos)
+			node = newMult(node, p.factor(), tkn.pos)
 		case tokenDiv:
 			tkn := p.next()
-			node = newDiv(node, p.term(), tkn.pos)
+			node = newDiv(node, p.factor(), tkn.pos)
 		case tokenMod:
 			tkn := p.next()
-			node = newMod(node, p.term(), tkn.pos)
+			node = newMod(node, p.factor(), tkn.pos)
 		default:
 			break Loop
 		}
@@ -250,21 +276,24 @@ Loop:
 // factor: ("+" | "-") factor | atom;
 func (p *Parser) factor() Node {
 	switch p.peek().typ {
-	case tokenPlus, tokenMinus:
+	case tokenPlus:
 		tkn := p.next()
-		return newUnaryOp(tkn, p.factor(), tkn.pos)
+		return newPlus(p.factor(), tkn.pos)
+	case tokenMinus:
+		tkn := p.next()
+		return newMinus(p.factor(), tkn.pos)
 	default:
 		return p.atom()
 	}
 }
 
-// atom: "[" [exprList] "]" | ID | NUM | STR | RAWSTR | "null" | "false" | "true";
+// atom: "[" [exprList] "]" | "expr" | ID | NUM | STR | RAWSTR | "null" | "false" | "true";
 // Will complain and terminate if token is not an identifier, number, string,
 // null or boolean.
 func (p *Parser) atom() Node {
 	tkn := p.expectRange("atom type check", tokenIdentifier, tokenNumber,
 		tokenRawString, tokenQuotedString, tokenNull, tokenFalse, tokenTrue,
-		// tokenRightSquare,
+		tokenLeftParen, tokenLeftSquare,
 	)
 	switch tkn.typ {
 	case tokenNumber:
@@ -283,7 +312,11 @@ func (p *Parser) atom() Node {
 			p.error(err)
 		}
 		return n
-	// case tokenRightSquare: //TODO: TO BE IMPLEMENTED
+	case tokenLeftParen:
+		n := p.orEval()
+		p.expect("closing parenthesis", tokenRightParan)
+		return n
+	// case tokenLeftSquare:
 
 	default:
 		p.unexpected("atom", tkn)

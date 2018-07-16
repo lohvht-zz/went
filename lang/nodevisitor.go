@@ -6,9 +6,22 @@ import (
 
 // NodeWalker is the interface to implement for all walkers/visitors to the AST
 type NodeWalker interface {
-	// Binary Operations
+	// Binary Operators
 	visitAdd(*AddNode)
-	visitUnaryOp(*UnaryOpNode)
+	visitSubtract(*SubtractNode)
+	visitMult(*MultNode)
+	visitDiv(*DivNode)
+	visitMod(*ModNode)
+	visitEq(*EqNode)
+	visitSm(*SmNode)
+	visitGr(*GrNode)
+	visitIn(*InNode)
+	visitAnd(*AndNode)
+	visitOr(*OrNode)
+	// Unary Operators
+	visitPlus(*PlusNode)
+	visitMinus(*MinusNode)
+	visitNot(*NotNode)
 	// visit literals
 	visitNum(*NumberNode)
 	visitStr(*StringNode)
@@ -16,15 +29,39 @@ type NodeWalker interface {
 	visitBool(*BoolNode)
 }
 
-// Top level visit function, marshals the NodeWalker to their correct visitXxx
-// method
+// visit marshals the NodeWalker to their correct visitXxx method
+// this function is the top level visit function
 func visit(node Node, nv NodeWalker) {
 	// fmt.Printf("nv type: %T", nv)
 	switch typedNode := node.(type) {
 	case *AddNode:
 		nv.visitAdd(typedNode)
-	case *UnaryOpNode:
-		nv.visitUnaryOp(typedNode)
+	case *SubtractNode:
+		nv.visitSubtract(typedNode)
+	case *MultNode:
+		nv.visitMult(typedNode)
+	case *DivNode:
+		nv.visitDiv(typedNode)
+	case *ModNode:
+		nv.visitMod(typedNode)
+	case *EqNode:
+		nv.visitEq(typedNode)
+	case *SmNode:
+		nv.visitSm(typedNode)
+	case *GrNode:
+		nv.visitGr(typedNode)
+	case *InNode:
+		nv.visitIn(typedNode)
+	case *AndNode:
+		nv.visitAnd(typedNode)
+	case *OrNode:
+		nv.visitOr(typedNode)
+	case *PlusNode:
+		nv.visitPlus(typedNode)
+	case *MinusNode:
+		nv.visitMinus(typedNode)
+	case *NotNode:
+		nv.visitNot(typedNode)
 	case *NumberNode:
 		nv.visitNum(typedNode)
 	case *StringNode:
@@ -61,11 +98,6 @@ func (i *Interpreter) visitAdd(node *AddNode) {
 	fmt.Print(node)
 	visit(node.right, i)
 	fmt.Println()
-}
-
-func (i *Interpreter) visitUnaryOp(node *UnaryOpNode) {
-	fmt.Print(node)
-	visit(node.expr, i)
 }
 
 func (i *Interpreter) visitNum(node *NumberNode) {

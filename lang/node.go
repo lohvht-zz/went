@@ -28,8 +28,6 @@ func (p Pos) Position() Pos {
 // This struct is meant to be embedded within all other binary operation
 // structs
 // Logical Binary Operator: "||", "&&"
-// NOTE: Do not create a Node directly using the struct definition, newXxx methods
-// exist to format a new node for you already.
 type binaryOpNode struct {
 	Pos
 	left  Node
@@ -50,17 +48,17 @@ func newAdd(left Node, right Node, pos Pos) *AddNode {
 
 func (n *AddNode) String() string { return "+" }
 
-// MinusNode holds a '-' operator between its 2 children
-type MinusNode struct {
+// SubtractNode holds a '-' operator between its 2 children
+type SubtractNode struct {
 	*binaryOpNode
 }
 
-// newMinus returns a pointer to a MinusNode
-func newMinus(left Node, right Node, pos Pos) *MinusNode {
-	return &MinusNode{&binaryOpNode{left: left, right: right, Pos: pos}}
+// newSubtract returns a pointer to a SubtractNode
+func newSubtract(left Node, right Node, pos Pos) *SubtractNode {
+	return &SubtractNode{&binaryOpNode{left: left, right: right, Pos: pos}}
 }
 
-func (n *MinusNode) String() string { return "-" }
+func (n *SubtractNode) String() string { return "-" }
 
 // MultNode holds a '*' operator between its 2 children
 type MultNode struct {
@@ -172,26 +170,73 @@ func (n *InNode) String() string {
 	return "in"
 }
 
+// AndNode holds the '&&' operator between its 2 children
+type AndNode struct {
+	*binaryOpNode
+}
+
+// newAnd returns a pointer to a AndNode
+func newAnd(left Node, right Node, pos Pos) *AndNode {
+	return &AndNode{&binaryOpNode{left: left, right: right, Pos: pos}}
+}
+
+func (n *AndNode) String() string { return "&&" }
+
+// OrNode holds the '||' operator between its 2 children
+type OrNode struct {
+	*binaryOpNode
+}
+
+// newOr returns a pointer to a OrNode
+func newOr(left Node, right Node, pos Pos) *OrNode {
+	return &OrNode{&binaryOpNode{left: left, right: right, Pos: pos}}
+}
+
+func (n *OrNode) String() string { return "||" }
+
 // Unary Operators
 
-// UnaryOpNode holds a unary operator as well as an expression node
-type UnaryOpNode struct {
+// unaryOpNode holds a unary operator as well as an operand node
+type unaryOpNode struct {
 	Pos
-	Op   token
-	expr Node
+	operand Node
 }
 
-// newUnaryOp creates a new UnaryOpNode
-func newUnaryOp(op token, expr Node, pos Pos) *UnaryOpNode {
-	n := &UnaryOpNode{Pos: pos}
-	n.Op = op
-	n.expr = expr
-	return n
+// PlusNode holds a unary positive ('+') operator and its operand
+type PlusNode struct {
+	*unaryOpNode
 }
 
-func (n *UnaryOpNode) String() string {
-	return n.Op.String()
+// newPlus returns a pointer to a PlusNode
+func newPlus(operand Node, pos Pos) *PlusNode {
+	return &PlusNode{&unaryOpNode{operand: operand, Pos: pos}}
 }
+
+func (n *PlusNode) String() string { return "+" }
+
+// MinusNode holds a unary negative ('-') operator and its operand
+type MinusNode struct {
+	*unaryOpNode
+}
+
+// newMinus returns a pointer to a MinusNode
+func newMinus(operand Node, pos Pos) *MinusNode {
+	return &MinusNode{&unaryOpNode{operand: operand, Pos: pos}}
+}
+
+func (n *MinusNode) String() string { return "-" }
+
+// NotNode holds a unary logical not ('!') operator and its operand
+type NotNode struct {
+	*unaryOpNode
+}
+
+// newNot returns a pointer to a NotNode
+func newNot(operand Node, pos Pos) *NotNode {
+	return &NotNode{&unaryOpNode{operand: operand, Pos: pos}}
+}
+
+func (n *NotNode) String() string { return "!" }
 
 // Literals
 
