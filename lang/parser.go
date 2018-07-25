@@ -50,6 +50,7 @@ func (tl *tokenList) peekBottom() token {
 }
 
 // Parser parses the input string (file or otherwise) and creates an AST at its Root
+// also links the AST to the appropriate scopes
 type Parser struct {
 	Name         string
 	Root         Node   // top-level root of the tree
@@ -293,7 +294,7 @@ func (p *Parser) factor() Node {
 func (p *Parser) atom() Node {
 	tkn := p.expectRange("atom type check", tokenIdentifier, tokenNumber,
 		tokenRawString, tokenQuotedString, tokenNull, tokenFalse, tokenTrue,
-		tokenLeftParen, tokenLeftSquare,
+		tokenLeftRound, tokenLeftSquare,
 	)
 	switch tkn.typ {
 	case tokenNumber:
@@ -312,9 +313,9 @@ func (p *Parser) atom() Node {
 			p.error(err)
 		}
 		return n
-	case tokenLeftParen:
+	case tokenLeftRound:
 		n := p.orEval()
-		p.expect("closing parenthesis", tokenRightParan)
+		p.expect("closing parenthesis", tokenRightRound)
 		return n
 	// case tokenLeftSquare:
 
