@@ -1,51 +1,44 @@
 package main
 
 import (
-	"flag"
-	"io/ioutil"
-	"log"
 	"os"
-	"path/filepath"
 
-	"github.com/lohvht/nondescript/lang"
+	"github.com/lohvht/nondescript/cmd"
 )
 
-func main() {
-	// if len(os.Args) < 2 {
-	// 	fmt.Println("Entering Interpreter Mode")
-	// }
-
-	filePtr := flag.String("f", "", "Script file to read and parse (Required)")
-	flag.Parse()
-
-	if *filePtr == "" {
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
-	// Read the entire script into file, this is how they handle it for golang's html/template: https://golang.org/src/html/template/template.go (LINE 420)
-	// (If this proves to be an issue later on, use a buffer a la: https://stackoverflow.com/questions/13514184/how-can-i-read-a-whole-file-into-a-string-variable-in-golang)
-	// Not likely though, since our scripts are meant to be literally all text (i.e. no finicky business with images)
-	// Worst case scenario would be to restrict the file extension?
-	b, err := ioutil.ReadFile(*filePtr)
-	if err != nil {
-		log.Fatalf("Encountered error with opening/reading the file input: %s.\n", *filePtr)
-		os.Exit(1)
-	}
-	s := string(b) // string value of input
-	name := filepath.Base(*filePtr)
-	parseInput(name, s)
-}
-
-// func interpreterMode() {
-
+// REVIEW: Temporary dump for a preliminary implementation of the "map":
+// Naive implementation of a went "map" data structure, a data structure that maps strings
+// to other values in wentlang
+// type Wmap map[string]interface{}
+// tab = "\t"
+// twoSpaces = "  "
+// fourSpaces = "    "
+// func (w Wmap) toString(tabLevel int) string {
+// 	var buffer bytes.Buffer
+// 	buffer.WriteString("{\n")
+// 	for k, v := range w {
+// 		for i := 0; i < tabLevel+1; i++ {
+// 			buffer.WriteString("  ")
+// 		}
+// 		switch vTyped := v.(type) {
+// 		case Wmap:
+// 			buffer.WriteString(fmt.Sprintf("%s: %v,\n", k, vTyped.toString(tabLevel+1)))
+// 		default:
+// 			buffer.WriteString(fmt.Sprintf("%s: %v,\n", k, vTyped))
+// 		}
+//
+// 	}
+// 	for i := 0; i < tabLevel; i++ {
+// 		buffer.WriteString("  ")
+// 	}
+// 	buffer.WriteString("}")
+// 	return buffer.String()
+// }
+//
+// func (w Wmap) String() string {
+// 	return w.toString(0)
 // }
 
-// parseInput takes in the string input and runs the language
-func parseInput(name, input string) {
-	p, err := lang.Parse(name, input)
-	if err != nil {
-		log.Fatal(err)
-	}
-	i := lang.NewInterpreter(p.Root)
-	i.Interpret()
+func main() {
+	os.Exit(cmd.Run())
 }

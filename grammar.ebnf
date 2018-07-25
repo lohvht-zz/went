@@ -1,4 +1,4 @@
-(* NOTES!
+(* NOTE: !
   ### Guidelines to convert grammars to source code ###
   1. Each rule R, defined in the grammar, becomes a method with the same name
     References to that rule becomes method calls R(), body of the method follows
