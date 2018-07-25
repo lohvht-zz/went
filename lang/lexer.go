@@ -39,10 +39,10 @@ const (
 	tokenEOF
 	tokenDot         // Dot character '.'
 	tokenIdentifier  // alphanumeric identifier
-	tokenLeftParen   // left parenthesis '('
-	tokenRightParan  // right parenthesis ')'
-	tokenLeftBrace   // left brace '{'
-	tokenRightBrace  // right brace '}'
+	tokenLeftRound   // left bracket '('
+	tokenRightRound  // right bracket ')'
+	tokenLeftCurly   // left curly bracket '{'
+	tokenRightCurly  // right curly bracket '}'
 	tokenLeftSquare  // left square bracket '['
 	tokenRightSquare // right square bracket ']'
 	tokenColon       // colon symbol ':'
@@ -102,10 +102,10 @@ var tokenNames = map[tokenType]string{
 	tokenError:       "error",
 	tokenEOF:         "EOF",
 	tokenIdentifier:  "identifier",
-	tokenLeftParen:   "(",
-	tokenRightParan:  ")",
-	tokenLeftBrace:   "{",
-	tokenRightBrace:  "}",
+	tokenLeftRound:   "(",
+	tokenRightRound:  ")",
+	tokenLeftCurly:   "{",
+	tokenRightCurly:  "}",
 	tokenLeftSquare:  "[",
 	tokenRightSquare: "]",
 	tokenColon:       ":",
@@ -440,9 +440,9 @@ func lexCode(l *lexer) stateFunc {
 	case r == '(', r == '{', r == '[': // opening brackets
 		switch r {
 		case '(':
-			l.emit(tokenLeftParen)
+			l.emit(tokenLeftRound)
 		case '{':
-			l.emit(tokenLeftBrace)
+			l.emit(tokenLeftCurly)
 		case '[':
 			l.emit(tokenLeftSquare)
 		}
@@ -455,9 +455,9 @@ func lexCode(l *lexer) stateFunc {
 		}
 		switch r {
 		case ')':
-			l.emit(tokenRightParan)
+			l.emit(tokenRightRound)
 		case '}':
-			l.emit(tokenRightBrace)
+			l.emit(tokenRightCurly)
 		case ']':
 			l.emit(tokenRightSquare)
 		}

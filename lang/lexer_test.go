@@ -20,17 +20,17 @@ func makeError(value string) token {
 }
 
 var (
-	tknEOF     = makeToken(tokenEOF, "")
-	tknDot     = makeToken(tokenDot, ".")
-	tknLParen  = makeToken(tokenLeftParen, "(")
-	tknRParen  = makeToken(tokenRightParan, ")")
-	tknLBrace  = makeToken(tokenLeftBrace, "{")
-	tknRBrace  = makeToken(tokenRightBrace, "}")
-	tknLSquare = makeToken(tokenLeftSquare, "[")
-	tknRSquare = makeToken(tokenRightSquare, "]")
-	tknColon   = makeToken(tokenColon, ":")
-	tknSemi    = makeToken(tokenSemicolon, ";")
-	tknComma   = makeToken(tokenComma, ",")
+	tknEOF   = makeToken(tokenEOF, "")
+	tknDot   = makeToken(tokenDot, ".")
+	tknLR    = makeToken(tokenLeftRound, "(")
+	tknRR    = makeToken(tokenRightRound, ")")
+	tknLC    = makeToken(tokenLeftCurly, "{")
+	tknRC    = makeToken(tokenRightCurly, "}")
+	tknLS    = makeToken(tokenLeftSquare, "[")
+	tknRS    = makeToken(tokenRightSquare, "]")
+	tknColon = makeToken(tokenColon, ":")
+	tknSemi  = makeToken(tokenSemicolon, ";")
+	tknComma = makeToken(tokenComma, ",")
 	// Operators
 	// Arithmetic Operators
 	tknPlus = makeToken(tokenPlus, "+")
@@ -134,7 +134,7 @@ var lexTests = []lexTestcase{
 		"x.y.z+n.q.w()",
 		[]token{makeIdent("x"), tknDot, makeIdent("y"), tknDot, makeIdent("z"), tknPlus,
 			makeIdent("n"), tknDot, makeIdent("q"), tknDot, makeIdent("w"),
-			tknLParen, tknRParen, tknEOF,
+			tknLR, tknRR, tknEOF,
 		},
 	},
 	// Error Test Cases
@@ -152,28 +152,28 @@ var lexTests = []lexTestcase{
 	},
 	{"extra right paren )",
 		"(x + 1)) * y",
-		[]token{tknLParen, makeIdent("x"), tknPlus, makeToken(tokenNumber, "1"),
-			tknRParen, makeError(`unexpected right paren U+0029 ')'`),
+		[]token{tknLR, makeIdent("x"), tknPlus, makeToken(tokenNumber, "1"),
+			tknRR, makeError(`unexpected right paren U+0029 ')'`),
 		},
 	},
 	{"extra right brace paren }",
 		"if x == 1 { return y }}",
 		[]token{tknIf, makeIdent("x"), tknEql, makeToken(tokenNumber, "1"),
-			tknLBrace, tknReturn, makeIdent("y"), tknRBrace,
+			tknLC, tknReturn, makeIdent("y"), tknRC,
 			makeError(`unexpected right paren U+007D '}'`),
 		},
 	},
 	{"extra right square paren ]",
 		"[x, 2, w]]",
-		[]token{tknLSquare, makeIdent("x"), tknComma, makeToken(tokenNumber, "2"),
-			tknComma, makeIdent("w"), tknRSquare, makeError(`unexpected right paren U+005D ']'`),
+		[]token{tknLS, makeIdent("x"), tknComma, makeToken(tokenNumber, "2"),
+			tknComma, makeIdent("w"), tknRS, makeError(`unexpected right paren U+005D ']'`),
 		},
 	},
 	{"unclosed left paren",
-		"x+y)*((1/1.324)%4",
-		[]token{tknLParen, makeIdent("x"), tknPlus, makeIdent("y"), tknRParen, tknMult,
-			tknLParen, tknLParen, makeToken(tokenNumber, "1"), tknDiv,
-			makeToken(tokenNumber, "1.324"), tknRParen, tknMod, makeToken(tokenNumber, "4"),
+		"(x+y)*((1/1.324)%4",
+		[]token{tknLR, makeIdent("x"), tknPlus, makeIdent("y"), tknRR, tknMult,
+			tknLR, tknLR, makeToken(tokenNumber, "1"), tknDiv,
+			makeToken(tokenNumber, "1.324"), tknRR, tknMod, makeToken(tokenNumber, "4"),
 			makeError(`unclosed left paren: U+0028 '('`),
 		},
 	},
