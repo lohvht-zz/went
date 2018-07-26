@@ -17,7 +17,7 @@ type token struct {
 	typ   tokenType // Type of this token
 	pos   Pos       // Starting position, in bytes of this item in the input string
 	value string    // value of this item
-	line  int       // Line number at the start of this item
+	line  LinePos   // Line number at the start of this item
 }
 
 func (tok token) String() string {
@@ -223,7 +223,7 @@ type lexer struct {
 	tokens       chan token // channel of the scanned items
 	prevTokTyp   tokenType  // previous token type used for automatic semicolon insertion
 	bracketStack runeStack  // a stack of runes used to keep track of all '(', '[' and '{'
-	line         int        // 1 + number of newlines seen
+	line         LinePos    // 1 + number of newlines seen
 }
 
 // next returns the next rune in the input
@@ -264,7 +264,7 @@ func (l *lexer) emit(typ tokenType) {
 	// Some of the tokens contain text internally, if so, count their newlines
 	switch typ {
 	case tokenRawString:
-		l.line += strings.Count(l.input[l.start:l.pos], "\n")
+		l.line += LinePos(strings.Count(l.input[l.start:l.pos], "\n"))
 	}
 	l.start = l.pos
 	l.prevTokTyp = typ
@@ -272,7 +272,7 @@ func (l *lexer) emit(typ tokenType) {
 
 // skips over the pending input before this point
 func (l *lexer) ignore() {
-	l.line += strings.Count(l.input[l.start:l.pos], "\n")
+	l.line += LinePos(strings.Count(l.input[l.start:l.pos], "\n"))
 	l.start = l.pos
 }
 

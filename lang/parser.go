@@ -176,7 +176,7 @@ func (p *Parser) orEval() Node {
 	node := p.notEval()
 	for p.peek().typ == tokenOr {
 		tkn := p.next()
-		node = newOr(node, p.notEval(), tkn.pos)
+		node = newOr(node, p.notEval(), tkn.pos, tkn.line)
 	}
 	return node
 }
@@ -186,7 +186,7 @@ func (p *Parser) andEval() Node {
 	node := p.notEval()
 	for p.peek().typ == tokenAnd {
 		tkn := p.next()
-		node = newAnd(node, p.notEval(), tkn.pos)
+		node = newAnd(node, p.notEval(), tkn.pos, tkn.line)
 	}
 	return node
 }
@@ -196,7 +196,7 @@ func (p *Parser) notEval() Node {
 	switch p.peek().typ {
 	case tokenLogicalNot:
 		tkn := p.next()
-		return newNot(p.notEval(), tkn.pos)
+		return newNot(p.notEval(), tkn.pos, tkn.line)
 	default:
 		return p.comparison()
 	}
@@ -211,21 +211,21 @@ Loop:
 		switch p.peek().typ {
 		case tokenEquals, tokenNotEquals:
 			tkn := p.next()
-			node = newEq(node, p.smExpr(), tkn.pos, tkn.typ == tokenNotEquals)
+			node = newEq(node, p.smExpr(), tkn.typ == tokenNotEquals, tkn.pos, tkn.line)
 		case tokenSmaller, tokenSmallerEquals:
 			tkn := p.next()
-			node = newSm(node, p.smExpr(), tkn.pos, tkn.typ == tokenSmallerEquals)
+			node = newSm(node, p.smExpr(), tkn.typ == tokenSmallerEquals, tkn.pos, tkn.line)
 		case tokenGreater, tokenGreaterEquals:
 			tkn := p.next()
-			node = newGr(node, p.smExpr(), tkn.pos, tkn.typ == tokenGreaterEquals)
+			node = newGr(node, p.smExpr(), tkn.typ == tokenGreaterEquals, tkn.pos, tkn.line)
 		case tokenIn:
 			tkn := p.next()
-			node = newIn(node, p.smExpr(), tkn.pos, false)
+			node = newIn(node, p.smExpr(), false, tkn.pos, tkn.line)
 		case tokenLogicalNot:
 			tkn := p.next()
 			// Expects the next token to be tokenIn
 			p.expect("not operator in comparison rule", tokenIn)
-			node = newIn(node, p.smExpr(), tkn.pos, true)
+			node = newIn(node, p.smExpr(), true, tkn.pos, tkn.line)
 		default:
 			break Loop
 		}
@@ -241,10 +241,10 @@ Loop:
 		switch p.peek().typ {
 		case tokenPlus:
 			tkn := p.next()
-			node = newAdd(node, p.term(), tkn.pos)
+			node = newAdd(node, p.term(), tkn.pos, tkn.line)
 		case tokenMinus:
 			tkn := p.next()
-			node = newSubtract(node, p.term(), tkn.pos)
+			node = newSubtract(node, p.term(), tkn.pos, tkn.line)
 		default:
 			break Loop
 		}
@@ -260,13 +260,13 @@ Loop:
 		switch p.peek().typ {
 		case tokenMult:
 			tkn := p.next()
-			node = newMult(node, p.factor(), tkn.pos)
+			node = newMult(node, p.factor(), tkn.pos, tkn.line)
 		case tokenDiv:
 			tkn := p.next()
-			node = newDiv(node, p.factor(), tkn.pos)
+			node = newDiv(node, p.factor(), tkn.pos, tkn.line)
 		case tokenMod:
 			tkn := p.next()
-			node = newMod(node, p.factor(), tkn.pos)
+			node = newMod(node, p.factor(), tkn.pos, tkn.line)
 		default:
 			break Loop
 		}
@@ -279,10 +279,10 @@ func (p *Parser) factor() Node {
 	switch p.peek().typ {
 	case tokenPlus:
 		tkn := p.next()
-		return newPlus(p.factor(), tkn.pos)
+		return newPlus(p.factor(), tkn.pos, tkn.line)
 	case tokenMinus:
 		tkn := p.next()
-		return newMinus(p.factor(), tkn.pos)
+		return newMinus(p.factor(), tkn.pos, tkn.line)
 	default:
 		return p.atom()
 	}
@@ -298,17 +298,17 @@ func (p *Parser) atom() Node {
 	)
 	switch tkn.typ {
 	case tokenNumber:
-		n, err := newNumber(tkn.pos, tkn.value)
+		n, err := newNumber(tkn.value, tkn.pos, tkn.line)
 		if err != nil {
 			p.error(err)
 		}
 		return n
 	case tokenRawString, tokenQuotedString:
-		return newString(tkn.pos, tkn.value)
+		return newString(tkn.value, tkn.pos, tkn.line)
 	case tokenNull:
-		return newNull(tkn.pos, tkn.value)
+		return newNull(tkn.value, tkn.pos, tkn.line)
 	case tokenFalse, tokenTrue:
-		n, err := newBool(tkn.pos, tkn.value, tkn.typ)
+		n, err := newBool(tkn.value, tkn.typ, tkn.pos, tkn.line)
 		if err != nil {
 			p.error(err)
 		}

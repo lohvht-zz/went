@@ -9,7 +9,7 @@ echo('Hello `Went`')
 ## Data Types
 `Went` supports values of familiar types like `int`, `float`, `string` and `bool`. `Went` supports `lists` in the form of `int` indexed ordered lists as well as `maps` in the form of key value pairs (with keys being `strings`).
 
-`maps` and `lists` in `Went` may store any type as well.
+`maps` and `lists` in `Went` may store the above types as well as other `maps` or `lists` as well.
 <!-- as well as `structs`, which can hold functions called `methods` as well as `properties` that can hold any of the data types defined above. -->
 
 ## Zero Values
