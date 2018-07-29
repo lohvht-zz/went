@@ -26,6 +26,8 @@ func (tok token) String() string {
 		return "EOF"
 	case tok.typ == tokenError:
 		return fmt.Sprintf("<err: %s>", tok.value)
+	case tok.typ == tokenSemicolon:
+		return ";"
 	case tok.typ > tokenKeyword:
 		return fmt.Sprintf("<%s>", tok.value)
 	}
@@ -227,6 +229,7 @@ type lexer struct {
 }
 
 // next returns the next rune in the input
+// next increases newline count
 func (l *lexer) next() rune {
 	if int(l.pos) >= len(l.input) {
 		l.width = 0
@@ -270,9 +273,11 @@ func (l *lexer) emit(typ tokenType) {
 	l.prevTokTyp = typ
 }
 
-// skips over the pending input before this point
-func (l *lexer) ignore() {
-	l.line += LinePos(strings.Count(l.input[l.start:l.pos], "\n"))
+// ignore skips over the pending input before this point
+func (l *lexer) ignore(countSpace bool) {
+	if countSpace {
+		l.line += LinePos(strings.Count(l.input[l.start:l.pos], "\n"))
+	}
 	l.start = l.pos
 }
 
@@ -348,7 +353,7 @@ func (l *lexer) scanNumber() bool {
 // termination character to appear after an identifier
 func (l *lexer) atIdentifierTerminator() bool {
 	r := l.peek()
-	if isSpace(r) {
+	if isSpace(r) || isEndOfLine(r) {
 		return true
 	}
 	switch r {
@@ -387,6 +392,9 @@ func lexCode(l *lexer) stateFunc {
 		return lexEOF
 	case isSpace(r):
 		return lexSpace
+	case isEndOfLine(r): // detects \r or \n
+		l.backup()
+		return lexNewline
 	case r == ':':
 		l.emit(tokenColon)
 	case r == ',':
@@ -403,9 +411,11 @@ func lexCode(l *lexer) stateFunc {
 		} else {
 			l.errorf("expected token %#U", r)
 		}
-	case r == '"':
+	case r == '\'':
+		l.ignore(false) // ignore the opening quote
 		return lexQuotedString
 	case r == '`':
+		l.ignore(false) // ignore the opening quote
 		return lexRawString
 	case r == '.':
 		// Special lookahead for ".property" so we don't break l.backup()
@@ -483,7 +493,35 @@ func lexSpace(l *lexer) stateFunc {
 	for isSpace(l.peek()) {
 		l.next()
 	}
-	l.ignore()
+	l.ignore(false)
+	return lexCode
+}
+
+// lexNewline scans for a run of newline chars ('\n')
+// This method also does the automatic semicolon insertions with the following
+// rules:
+// 1. the token is an identifier, or string/boolean/number literal
+// 2. the token is a `break`, `return` or `continue`
+// 3. token closes a round or square bracket (')', ']')
+func lexNewline(l *lexer) stateFunc {
+Loop:
+	for {
+		switch r := l.next(); {
+		case r == '\n':
+			// Absorb and go to next iteration
+		default:
+			l.backup()
+			break Loop
+		}
+	}
+	switch l.prevTokTyp {
+	case tokenIdentifier, tokenRawString, tokenQuotedString, tokenFalse,
+		tokenTrue, tokenNumber, tokenBreak, tokenCont, tokenReturn,
+		tokenRightRound, tokenRightSquare:
+		l.emit(tokenSemicolon)
+	default:
+		l.ignore(false) // do not count the spaces as the next() already adds
+	}
 	return lexCode
 }
 
@@ -496,11 +534,14 @@ Loop:
 			if r := l.next(); r == '\n' || r == eof {
 				return l.errorf("unterminated quoted string")
 			}
-		case '"':
+		case '\'':
+			l.backup() // move back before the closing quote
 			break Loop
 		}
 	}
 	l.emit(tokenQuotedString)
+	l.next()
+	l.ignore(false) // now consume and ignore the closing quote
 	return lexCode
 }
 
@@ -516,10 +557,13 @@ Loop:
 			l.line = startLine
 			return l.errorf("Unterminated raw string")
 		case '`':
+			l.backup() // move back before the closing quote
 			break Loop
 		}
 	}
 	l.emit(tokenRawString)
+	l.next()
+	l.ignore(false) // now consume and ignore the closing quote
 	return lexCode
 }
 
@@ -624,7 +668,7 @@ func lexSinglelineComment(l *lexer) stateFunc {
 	} else {
 		l.pos += Pos(i)
 	}
-	l.ignore()
+	l.ignore(false)
 	return lexCode
 }
 
@@ -637,14 +681,18 @@ func lexMultilineComment(l *lexer) stateFunc {
 		return l.errorf("Multiline comment is not closed")
 	}
 	l.pos += Pos(i + len(rightComment))
-	l.ignore()
+	l.ignore(true)
 	return lexCode
 }
 
 // Utility Functions
 
 func isSpace(r rune) bool {
-	return r == ' ' || r == '\t' || r == '\r' || r == '\n'
+	return r == ' ' || r == '\t' || r == '\r'
+}
+
+func isEndOfLine(r rune) bool {
+	return r == '\n'
 }
 
 func isAlphaNumeric(r rune) bool {
