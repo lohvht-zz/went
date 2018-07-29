@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"log"
 	"path/filepath"
+
+	"github.com/lohvht/nondescript/lang"
 )
 
 // NOTE: write-up on how to decouple CLI and Running commands
@@ -40,15 +42,19 @@ func Run() int {
 }
 
 // func interpreterMode() {
-// REVIEW:
+// REVIEW: Make a mode that runs line-by-line interpretation in a manner similar
+// to Python IDLE or javascript consoles for browsers
+
 // }
 
 // parseInput takes in the string input and runs the language
 func parseInput(name, input string) {
-	// p, err := lang.Parse(name, input)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// i := lang.NewInterpreter(p.Root)
-	// i.Interpret()
+	p, errp := lang.Parse(name, input)
+	if errp != nil {
+		log.Fatal(errp)
+	}
+	_, erri := lang.Interpret(p.Root)
+	if erri != nil {
+		log.Fatal(erri)
+	}
 }

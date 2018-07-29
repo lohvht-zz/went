@@ -3,24 +3,24 @@ package lang
 // NodeWalker is the interface to implement for all walkers/visitors to the AST
 type NodeWalker interface {
 	// Binary Operators
-	visitAdd(*AddNode) interface{}
-	visitSubtract(*SubtractNode) interface{}
-	visitMult(*MultNode) interface{}
-	visitDiv(*DivNode) interface{}
-	visitMod(*ModNode) interface{}
-	visitEq(*EqNode) interface{}
-	visitSm(*SmNode) interface{}
-	visitGr(*GrNode) interface{}
-	visitIn(*InNode) interface{}
-	visitAnd(*AndNode) interface{}
-	visitOr(*OrNode) interface{}
+	visitAdd(*AddNode) WType
+	visitSubtract(*SubtractNode) WType
+	visitMult(*MultNode) WType
+	visitDiv(*DivNode) WType
+	visitMod(*ModNode) WType
+	visitEq(*EqNode) WType
+	visitSm(*SmNode) WType
+	visitGr(*GrNode) WType
+	visitIn(*InNode) WType
+	visitAnd(*AndNode) WType
+	visitOr(*OrNode) WType
 	// Unary Operators
-	visitPlus(*PlusNode) interface{}
-	visitMinus(*MinusNode) interface{}
-	visitNot(*NotNode) interface{}
+	visitPlus(*PlusNode) WType
+	visitMinus(*MinusNode) WType
+	visitNot(*NotNode) WType
 	// visit literals
-	visitNum(*NumberNode) interface{}
-	visitStr(*StringNode) interface{}
-	visitNull(*NullNode) interface{}
-	visitBool(*BoolNode) interface{}
+	visitNum(*NumberNode) WType
+	visitStr(*StringNode) WType
+	visitNull(*NullNode) WType
+	visitBool(*BoolNode) WType
 }

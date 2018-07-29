@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"runtime"
 )
 
 // Interpreter implements NodeWalker
@@ -34,167 +35,191 @@ func (i *Interpreter) error(err error) {
 	i.errorf("%s", err)
 }
 
-// // NewInterpreter creates a new interpreter object with the root as the Node
-// // being passed in
-// func NewInterpreter(rootNode Node) *Interpreter {
-// 	i := &Interpreter{Root: rootNode}
-// 	return i
-// }
+func (i *Interpreter) recover(erri *error) {
+	e := recover()
+	if e != nil {
+		if _, ok := e.(runtime.Error); ok {
+			panic(e)
+		}
+		*erri = e.(error)
+	}
+}
 
-// // Interpret walks the tree from its root, exploring its children while making
-// // its walk downwards
-// func (i *Interpreter) Interpret() {
-// 	visit(i.Root, i)
-// }
+// initInterp creates a new interpreter object with the root as the Node
+// being passed in
+func initInterp(rootNode Node) *Interpreter {
+	i := &Interpreter{Root: rootNode}
+	return i
+}
+
+// Interpret interprets the AST tree from its root
+func Interpret(rootNode Node) (interp *Interpreter, err error) {
+	i := initInterp(rootNode)
+	defer i.recover(&err)
+	i.interpret()
+	return i, nil
+}
+
+// interpret walks the tree from its root, exploring its children while making
+// its walk downwards
+func (i *Interpreter) interpret() {
+	res := i.Root.Accept(i)
+	fmt.Printf("result is: %v of type %T\n", res, res)
+}
 
 // NOTE: Should we allow functional overloading for arithmetic expressions?
 
-func (i *Interpreter) visitAdd(node *AddNode) interface{} {
-	a, aOk := node.left.Accept(i).(string)
-	b, bOk := node.right.Accept(i).(string)
+// additiveOp handles visit method for "additive" operators such as
+// '+', '-', '*' for arithmetic operations
+func (i *Interpreter) additiveOp(leftRes, rightRes WType, node Node) WType {
+	a, aOk := leftRes.(WNum)
+	b, bOk := rightRes.(WNum)
+	if aOk && bOk {
+		switch node.(type) {
+		case *AddNode:
+			return a + b
+		case *SubtractNode:
+			return a - b
+		case *MultNode:
+			return a * b
+		}
+	}
+	// If reached here, force a type error, especially if they're adding in
+	// incompatible types
+	typ1Str := reflect.TypeOf(leftRes).Name()
+	typ2Str := reflect.TypeOf(rightRes).Name()
+	i.typeErrorf("unsupported operand type(s) for %s: '%s' and '%s'",
+		node, node, typ1Str, typ2Str,
+	)
+	// Should not reach here as typeErrorf will panic
+	return WNull{}
+}
+
+// additiveOp handles visit method for "divisive" operators such as
+// '/' and '%' for arithmetic operations such that they handle zero divisions
+// properly
+func (i *Interpreter) divisiveOp(leftRes, rightRes WType, node Node) WType {
+	a, aOk := leftRes.(WNum)
+	b, bOk := rightRes.(WNum)
+	if aOk && bOk {
+		if b.IsZeroValue() {
+			if b.IsInt() {
+				i.zeroDivisionErrorf("int division by zero", node)
+			} else {
+				i.zeroDivisionErrorf("float division by zero", node)
+			}
+		}
+		switch node.(type) {
+		case *DivNode:
+			return a / b
+		case *MultNode:
+			if a.IsInt() && b.IsInt() {
+				return WNum(int64(a) % int64(b))
+			}
+			return WNum(math.Mod(float64(a), float64(b)))
+		}
+	}
+	// If reached here, force a type error, especially if they're adding in
+	// incompatible types
+	typ1Str := reflect.TypeOf(leftRes).Name()
+	typ2Str := reflect.TypeOf(rightRes).Name()
+	i.typeErrorf("unsupported operand type(s) for %s: '%s' and '%s'",
+		node, node, typ1Str, typ2Str,
+	)
+	// Should not reach here as typeErrorf will panic
+	return WNull{}
+}
+
+func (i *Interpreter) visitAdd(node *AddNode) WType {
+	leftRes := node.left.Accept(i)
+	rightRes := node.right.Accept(i)
+	a, aOk := leftRes.(WString)
+	b, bOk := rightRes.(WString)
 	if aOk && bOk { // if they're both strings
 		return a + b
 	}
-	c, cOk := node.left.Accept(i).(*NumberNode)
-	d, dOk := node.right.Accept(i).(*NumberNode)
-	if cOk && dOk {
-		if isIntOp(c, d) {
-			return c.Int64 + d.Int64
-		}
-		return c.Float64 + d.Float64
-	}
-	// If reached here, force a type error, especially if they're adding in
-	// incompatible types
-	typ1 := reflect.TypeOf(node.left).Name()
-	typ2 := reflect.TypeOf(node.right).Name()
-	i.typeErrorf(
-		"unsupported operand types(s) for %s: '%s' and '%s'",
-		node, node, typ1, typ2,
-	)
-	// Should not reach here as typeErrorf will panic
-	return -1
+	return i.additiveOp(leftRes, rightRes, node)
 }
 
-func (i *Interpreter) visitSubtract(node *SubtractNode) interface{} {
-	a, aOk := node.left.Accept(i).(*NumberNode)
-	b, bOk := node.right.Accept(i).(*NumberNode)
-	if aOk && bOk {
-		if isIntOp(a, b) {
-			return a.Int64 - b.Int64
-		}
-		return a.Float64 - b.Float64
-	}
-	// If reached here, force a type error, especially if they're adding in
-	// incompatible types
-	typ1 := reflect.TypeOf(node.left).Name()
-	typ2 := reflect.TypeOf(node.right).Name()
-	i.typeErrorf(
-		"unsupported operand types(s) for %s: '%s' and '%s'",
-		node, node, typ1, typ2,
-	)
-	// Should not reach here as typeErrorf will panic
-	return -1
+func (i *Interpreter) visitSubtract(node *SubtractNode) WType {
+	leftRes := node.left.Accept(i)
+	rightRes := node.right.Accept(i)
+	return i.additiveOp(leftRes, rightRes, node)
 }
 
-func (i *Interpreter) visitMult(node *MultNode) interface{} {
-	a, aOk := node.left.Accept(i).(*NumberNode)
-	b, bOk := node.right.Accept(i).(*NumberNode)
-	if aOk && bOk {
-		if isIntOp(a, b) {
-			return a.Int64 * b.Int64
-		}
-		return a.Float64 * b.Float64
-	}
-	// If reached here, force a type error, especially if they're adding in
-	// incompatible types
-	typ1 := reflect.TypeOf(node.left).Name()
-	typ2 := reflect.TypeOf(node.right).Name()
-	i.typeErrorf(
-		"unsupported operand types(s) for %s: '%s' and '%s'",
-		node, node, typ1, typ2,
-	)
-	// Should not reach here as typeErrorf will panic
-	return -1
+func (i *Interpreter) visitMult(node *MultNode) WType {
+	leftRes := node.left.Accept(i)
+	rightRes := node.right.Accept(i)
+	return i.additiveOp(leftRes, rightRes, node)
 }
 
-func (i *Interpreter) visitDiv(node *DivNode) interface{} {
-	a, aOk := node.left.Accept(i).(*NumberNode)
-	b, bOk := node.right.Accept(i).(*NumberNode)
-	if aOk && bOk {
-		switch {
-		case b.Float64 == 0:
-			i.zeroDivisionErrorf("float division by zero", node)
-		case b.Int64 == 0:
-			i.zeroDivisionErrorf("int division by zero", node)
-		case isIntOp(a, b):
-			return a.Int64 / b.Int64
-		default:
-			return a.Float64 / b.Float64
-		}
-	}
-	// If reached here, force a type error, especially if they're adding in
-	// incompatible types
-	typ1 := reflect.TypeOf(node.left).Name()
-	typ2 := reflect.TypeOf(node.right).Name()
-	i.typeErrorf(
-		"unsupported operand types(s) for %s: '%s' and '%s'",
-		node, node, typ1, typ2,
-	)
-	// Should not reach here as typeErrorf will panic
-	return -1
+func (i *Interpreter) visitDiv(node *DivNode) WType {
+	leftRes := node.left.Accept(i)
+	rightRes := node.right.Accept(i)
+	return i.divisiveOp(leftRes, rightRes, node)
 }
 
-func (i *Interpreter) visitMod(node *ModNode) interface{} {
-	a, aOk := node.left.Accept(i).(*NumberNode)
-	b, bOk := node.right.Accept(i).(*NumberNode)
-	if aOk && bOk {
-		switch {
-		case b.Float64 == 0:
-			i.zeroDivisionErrorf("float modulo by zero", node)
-		case b.Int64 == 0:
-			i.zeroDivisionErrorf("int modulo by zero", node)
-		case isIntOp(a, b):
-			return a.Int64 % b.Int64
-		default:
-			return math.Mod(a.Float64, b.Float64)
-		}
-	}
-	// If reached here, force a type error, especially if they're adding in
-	// incompatible types
-	typ1 := reflect.TypeOf(node.left).Name()
-	typ2 := reflect.TypeOf(node.right).Name()
-	i.typeErrorf(
-		"unsupported operand types(s) for %s: '%s' and '%s'",
-		node, node, typ1, typ2,
-	)
-	// Should not reach here as typeErrorf will panic
-	return -1
+func (i *Interpreter) visitMod(node *ModNode) WType {
+	leftRes := node.left.Accept(i)
+	rightRes := node.right.Accept(i)
+	return i.divisiveOp(leftRes, rightRes, node)
 }
 
-func (i *Interpreter) visitEq(node *EqNode) interface{}   { return -1 }
-func (i *Interpreter) visitSm(node *SmNode) interface{}   { return -1 }
-func (i *Interpreter) visitGr(node *GrNode) interface{}   { return -1 }
-func (i *Interpreter) visitIn(node *InNode) interface{}   { return -1 }
-func (i *Interpreter) visitAnd(node *AndNode) interface{} { return -1 }
-func (i *Interpreter) visitOr(node *OrNode) interface{}   { return -1 }
+func (i *Interpreter) visitEq(node *EqNode) WType {
+	// leftRes := node.left.Accept(i)
+	// rightRes := node.right.Accept(i)
+	return WNull{}
+}
+
+func (i *Interpreter) visitSm(node *SmNode) WType   { return WNull{} }
+func (i *Interpreter) visitGr(node *GrNode) WType   { return WNull{} }
+func (i *Interpreter) visitIn(node *InNode) WType   { return WNull{} }
+func (i *Interpreter) visitAnd(node *AndNode) WType { return WNull{} }
+func (i *Interpreter) visitOr(node *OrNode) WType   { return WNull{} }
 
 // Unary Operators
-func (i *Interpreter) visitPlus(node *PlusNode) interface{}   { return -1 }
-func (i *Interpreter) visitMinus(node *MinusNode) interface{} { return -1 }
-func (i *Interpreter) visitNot(node *NotNode) interface{}     { return -1 }
 
-// visit literals
-
-// visitNode for interpreter
-func (i *Interpreter) visitNum(node *NumberNode) interface{} { return node }
-func (i *Interpreter) visitStr(node *StringNode) interface{} { return node.String() }
-func (i *Interpreter) visitNull(node *NullNode) interface{}  { return -1 }
-func (i *Interpreter) visitBool(node *BoolNode) interface{}  { return -1 }
-
-// Helper functions
-
-// isIntOp determines if both number nodes should be evaluated as a omt64
-// as opposed to a float
-func isIntOp(a *NumberNode, b *NumberNode) bool {
-	return a.IsInt && b.IsInt
+// visitPlus evaluates a node
+func (i *Interpreter) visitPlus(node *PlusNode) WType {
+	switch v := node.operand.Accept(i).(type) {
+	case WNum:
+		return v
+	default:
+		typ := reflect.TypeOf(v).Name()
+		i.typeErrorf("bad operand type for unary %s: '%s'", node, node, typ)
+	}
+	// Should not reach here as typeErrorf will panic
+	return WNull{}
 }
+
+func (i *Interpreter) visitMinus(node *MinusNode) WType {
+	switch v := node.operand.Accept(i).(type) {
+	case WNum:
+		return -v
+	default:
+		typ := reflect.TypeOf(v).Name()
+		i.typeErrorf("bad operand type for unary %s: '%s'", node, node, typ)
+	}
+	// Should not reach here as typeErrorf will panic
+	return WNull{}
+}
+
+// visitNot returns true if its operand are zero values (i.e. are false)
+// else returns false
+func (i *Interpreter) visitNot(node *NotNode) WType {
+	switch v := node.operand.Accept(i).(type) {
+	case WType:
+		return v.IsZeroValue()
+	default:
+		typ := reflect.TypeOf(v).Name()
+		i.typeErrorf("bad operand type for unary %s: '%s'", node, node, typ)
+	}
+	// Should not reach here as typeErrorf will panic
+	return WNull{}
+}
+
+// visit literals ==> At its core, these will return WType values
+func (i *Interpreter) visitNum(n *NumberNode) WType { return WNum(n.Float64) }
+func (i *Interpreter) visitStr(n *StringNode) WType { return WString(n.String()) }
+func (i *Interpreter) visitNull(n *NullNode) WType  { return WNull{} }
+func (i *Interpreter) visitBool(n *BoolNode) WType  { return WBool(n.Value) }

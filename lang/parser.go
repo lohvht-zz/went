@@ -151,9 +151,7 @@ func initParser(tokeniser *lexer) *Parser {
 	return p
 }
 
-func (p *Parser) stopParse() {
-	p.tokeniser = nil
-}
+func (p *Parser) stopParse() { p.tokeniser = nil }
 
 // Parse parses the input string to construct an AST
 func Parse(name, input string) (parser *Parser, err error) {
@@ -166,6 +164,9 @@ func Parse(name, input string) (parser *Parser, err error) {
 
 func (p *Parser) parse() {
 	p.Root = p.orEval()
+	if p.peek().typ == tokenSemicolon {
+		p.next() // just consume the semicolon for now
+	}
 	p.expect("End of File", tokenEOF)
 }
 

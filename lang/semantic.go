@@ -25,6 +25,9 @@ func (s baseSymbol) String() string { return s.Name() }
 // TypeSymbol is a symbol that represents any given type, self-defined or built-in
 type TypeSymbol struct{ baseSymbol }
 
+// VarSymbol is symbol that represents a variable (using an identifier)
+type VarSymbol struct{ baseSymbol }
+
 // Built-in Types Symbols
 var (
 	intType   = TypeSymbol{baseSymbol{name: "int"}}
