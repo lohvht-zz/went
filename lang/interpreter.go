@@ -118,7 +118,7 @@ func (i *Interpreter) divisiveOp(leftRes, rightRes WType, node Node) WType {
 		switch node.(type) {
 		case *DivNode:
 			return a / b
-		case *MultNode:
+		case *ModNode:
 			if a.IsInt() && b.IsInt() {
 				return WNum(int64(a) % int64(b))
 			}
@@ -269,8 +269,17 @@ func (i *Interpreter) visitNot(node *NotNode) WType {
 }
 
 // visit literals ==> At its core, these will return WType values
-// TODO: visit literals for list and maps
+
+// TODO: visit literals for maps
 func (i *Interpreter) visitNum(n *NumberNode) WType { return WNum(n.Float64) }
 func (i *Interpreter) visitStr(n *StringNode) WType { return WString(n.String()) }
 func (i *Interpreter) visitNull(n *NullNode) WType  { return WNull{} }
 func (i *Interpreter) visitBool(n *BoolNode) WType  { return WBool(n.Value) }
+
+func (i *Interpreter) visitList(n *ListNode) WType {
+	wl := WList{}
+	for _, elNode := range n.elements {
+		wl = append(wl, elNode.Accept(i))
+	}
+	return wl
+}

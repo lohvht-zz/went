@@ -397,3 +397,18 @@ func newBool(text string, tknTyp tokenType, pos Pos, linePos LinePos) (*BoolNode
 func (n *BoolNode) Accept(nw NodeWalker) WType { return nw.visitBool(n) }
 
 func (n *BoolNode) String() string { return n.Text }
+
+// ListNode holds a list of Nodes
+type ListNode struct {
+	litNode
+	elements []Node
+}
+
+func newList(elems []Node, pos Pos, linePos LinePos) *ListNode {
+	return &ListNode{litNode: litNode{Pos: pos, LinePos: linePos}, elements: elems}
+}
+
+// Accept marshalls the AST node walker to the correct visit method
+func (n *ListNode) Accept(nw NodeWalker) WType { return nw.visitList(n) }
+
+func (n *ListNode) String() string { return fmt.Sprintf("%v", n.elements) }

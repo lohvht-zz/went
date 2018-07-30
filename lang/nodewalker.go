@@ -23,4 +23,5 @@ type NodeWalker interface {
 	visitStr(*StringNode) WType
 	visitNull(*NullNode) WType
 	visitBool(*BoolNode) WType
+	visitList(*ListNode) WType
 }

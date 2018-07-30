@@ -285,8 +285,7 @@ func (p *Parser) factor() Node {
 }
 
 // atom: "[" [exprList] "]" | "expr" | ID | NUM | STR | RAWSTR | "null" | "false" | "true";
-// Will complain and terminate if token is not an identifier, number, string,
-// null or boolean.
+// exprList: orEval ("," orEval)* [","];
 func (p *Parser) atom() Node {
 	tkn := p.expectRange("atom type check", tokenIdentifier, tokenNumber,
 		tokenRawString, tokenQuotedString, tokenNull, tokenFalse, tokenTrue,
@@ -311,10 +310,18 @@ func (p *Parser) atom() Node {
 		return n
 	case tokenLeftRound:
 		n := p.orEval()
-		p.expect("closing parenthesis", tokenRightRound)
+		p.expect("closing brackets, expected ')'", tokenRightRound)
 		return n
-	// case tokenLeftSquare:
-
+	case tokenLeftSquare:
+		elements := []Node{p.orEval()}
+		for p.peek().typ == tokenComma {
+			p.next()                              // consume the comma token
+			if p.peek().typ != tokenRightSquare { // if the following token isn't ']'
+				elements = append(elements, p.orEval())
+			}
+		}
+		p.expect("closing square brackets, expected ']'", tokenRightSquare)
+		return newList(elements, tkn.pos, tkn.line)
 	default:
 		p.unexpected("atom", tkn)
 		return nil
