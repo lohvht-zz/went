@@ -6,7 +6,7 @@ import (
 	"log"
 	"path/filepath"
 
-	"github.com/lohvht/nondescript/lang"
+	"github.com/lohvht/went/lang"
 )
 
 // NOTE: write-up on how to decouple CLI and Running commands
@@ -18,7 +18,6 @@ func Run() int {
 	// if len(os.Args) < 2 {
 	// 	fmt.Println("Entering Interpreter Mode")
 	// }
-
 	filePtr := flag.String("f", "", "Script file to read and parse (Required)")
 	flag.Parse()
 

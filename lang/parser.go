@@ -174,10 +174,10 @@ func (p *Parser) parse() {
 
 // orEval: andEval ("||" orEval)*;
 func (p *Parser) orEval() Node {
-	node := p.notEval()
+	node := p.andEval()
 	for p.peek().typ == tokenOr {
 		tkn := p.next()
-		node = newOr(node, p.notEval(), tkn.pos, tkn.line)
+		node = newOr(node, p.andEval(), tkn.pos, tkn.line)
 	}
 	return node
 }
@@ -221,12 +221,7 @@ Loop:
 			node = newGr(node, p.smExpr(), tkn.typ == tokenGreaterEquals, tkn.pos, tkn.line)
 		case tokenIn:
 			tkn := p.next()
-			node = newIn(node, p.smExpr(), false, tkn.pos, tkn.line)
-		case tokenLogicalNot:
-			tkn := p.next()
-			// Expects the next token to be tokenIn
-			p.expect("not operator in comparison rule", tokenIn)
-			node = newIn(node, p.smExpr(), true, tkn.pos, tkn.line)
+			node = newIn(node, p.smExpr(), tkn.pos, tkn.line)
 		default:
 			break Loop
 		}

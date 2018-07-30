@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/lohvht/nondescript/cmd"
+	"github.com/lohvht/went/cmd"
 )
 
 func main() {

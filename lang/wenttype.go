@@ -8,9 +8,24 @@ import (
 // WType is an interface where all other `went` language data structures
 // should implemented, null is not within these types
 type WType interface {
-	IsZeroValue() WBool // returns true if the value is zero value
-	Equals(WType) WBool // returns true if the object compared to it is equals
+	IsZeroValue() WBool                    // returns true if the value is zero value
+	Equals(w2 WType) WBool                 // returns true if the object compared to it is equals
+	Sm(w2 WType, orEq bool) (WBool, error) // returns true if smaller than other type, returns error if type is not supported
+	Gr(w2 WType, orEq bool) (WBool, error) // returns true if greather than other type, returns error if type is not supported
 	String() string
+}
+
+var (
+	sm   = "<"
+	smE  = "<="
+	gr   = ">"
+	grE  = ">="
+	eql  = "=="
+	nEql = "!="
+)
+
+func opError(w1, w2 WType, compString string) error {
+	return fmt.Errorf("'%s' not supported between types '%T' and '%T'", compString, w1, w2)
 }
 
 // WNull is the null/none type in went, it is a value for no values
@@ -21,11 +36,43 @@ func (w WNull) IsZeroValue() WBool { return true }
 
 // Equals checks if the type compared to is equal
 func (w WNull) Equals(w2 WType) WBool {
-	if _, ok := w2.(WNull); ok {
-		return true
-	}
-	return false
+	_, ok := w2.(WNull)
+	return WBool(ok)
 }
+
+// Sm will always return an error for null as such a relation is not supported yet
+func (w WNull) Sm(w2 WType, orEq bool) (WBool, error) {
+	switch v := w2.(type) {
+	default:
+		var operator string
+		if orEq {
+			operator = smE
+		} else {
+			operator = sm
+		}
+		err := opError(w, v, operator)
+		return false, err
+	}
+}
+
+// Gr (see Sm)
+// a >= b <==> !(a < b)
+// a > b <==> !(a <= b)
+func (w WNull) Gr(w2 WType, orEq bool) (WBool, error) {
+	smRes, err := w.Sm(w2, !orEq)
+	if err != nil {
+		var operator string
+		if orEq {
+			operator = grE
+		} else {
+			operator = gr
+		}
+		return false, opError(w, w2, operator)
+	}
+	// Should be impossible to reach here as WNull will always have err != nil
+	return !smRes, nil
+}
+
 func (w WNull) String() string { return "null" }
 
 // WNum is a number type in went, it combines both integers as well as floats
@@ -40,6 +87,44 @@ func (w WNum) Equals(w2 WType) WBool {
 		return w == v
 	}
 	return false
+}
+
+// Sm returns true if w is smaller than w2, false else, returns an error if the
+// 2 are of different types
+func (w WNum) Sm(w2 WType, orEq bool) (WBool, error) {
+	switch v := w2.(type) {
+	case WNum:
+		if orEq {
+			return WBool(w <= v), nil
+		}
+		return WBool(w < v), nil
+	default:
+		var operator string
+		if orEq {
+			operator = smE
+		} else {
+			operator = sm
+		}
+		err := opError(w, v, operator)
+		return false, err
+	}
+}
+
+// Gr (see Sm)
+// a >= b <==> !(a < b)
+// a > b <==> !(a <= b)
+func (w WNum) Gr(w2 WType, orEq bool) (WBool, error) {
+	smRes, err := w.Sm(w2, !orEq)
+	if err != nil {
+		var operator string
+		if orEq {
+			operator = grE
+		} else {
+			operator = gr
+		}
+		return false, opError(w, w2, operator)
+	}
+	return !smRes, nil
 }
 
 func (w WNum) String() string { return fmt.Sprintf("%v", float64(w)) }
@@ -61,6 +146,44 @@ func (w WString) Equals(w2 WType) WBool {
 	return false
 }
 
+// Sm returns true if w is smaller than w2, false else, returns an error if the
+// 2 are of different types
+func (w WString) Sm(w2 WType, orEq bool) (WBool, error) {
+	switch v := w2.(type) {
+	case WString:
+		if orEq {
+			return WBool(w <= v), nil
+		}
+		return WBool(w < v), nil
+	default:
+		var operator string
+		if orEq {
+			operator = smE
+		} else {
+			operator = sm
+		}
+		err := opError(w, v, operator)
+		return false, err
+	}
+}
+
+// Gr (see Sm)
+// a >= b <==> !(a < b)
+// a > b <==> !(a <= b)
+func (w WString) Gr(w2 WType, orEq bool) (WBool, error) {
+	smRes, err := w.Sm(w2, !orEq)
+	if err != nil {
+		var operator string
+		if orEq {
+			operator = grE
+		} else {
+			operator = gr
+		}
+		return false, opError(w, w2, operator)
+	}
+	return !smRes, nil
+}
+
 func (w WString) String() string { return fmt.Sprintf("'%v'", string(w)) }
 
 // WBool is a boolean
@@ -75,6 +198,39 @@ func (w WBool) Equals(w2 WType) WBool {
 		return w == v
 	}
 	return false
+}
+
+// Sm will always return false and an error for WBool as WBool has
+// no order relation
+func (w WBool) Sm(w2 WType, orEq bool) (WBool, error) {
+	switch v := w2.(type) {
+	default:
+		var operator string
+		if orEq {
+			operator = smE
+		} else {
+			operator = sm
+		}
+		err := opError(w, v, operator)
+		return false, err
+	}
+}
+
+// Gr (see Sm)
+// a >= b <==> !(a < b)
+// a > b <==> !(a <= b)
+func (w WBool) Gr(w2 WType, orEq bool) (WBool, error) {
+	smRes, err := w.Sm(w2, !orEq)
+	if err != nil {
+		var operator string
+		if orEq {
+			operator = grE
+		} else {
+			operator = gr
+		}
+		return false, opError(w, w2, operator)
+	}
+	return !smRes, nil
 }
 
 func (w WBool) String() string { return fmt.Sprintf("%v", bool(w)) }
@@ -99,6 +255,50 @@ func (w WList) Equals(w2 WType) WBool {
 		}
 	}
 	return true
+}
+
+// Sm returns true if w is smaller than w2, false else, returns an error if the
+// 2 are of different types
+func (w WList) Sm(w2 WType, orEq bool) (WBool, error) {
+	switch v := w2.(type) {
+	case WList:
+		minLen := min(len(w), len(v))
+		for i := 0; i < minLen; i++ {
+			if !w[i].Equals(v[i]) {
+				return w[i].Sm(v[i], orEq)
+			}
+		}
+		if orEq {
+			return len(w) <= len(v), nil
+		}
+		return len(w) < len(v), nil
+	default:
+		var operator string
+		if orEq {
+			operator = smE
+		} else {
+			operator = sm
+		}
+		err := opError(w, v, operator)
+		return false, err
+	}
+}
+
+// Gr (see Sm)
+// a >= b <==> !(a < b)
+// a > b <==> !(a <= b)
+func (w WList) Gr(w2 WType, orEq bool) (WBool, error) {
+	smRes, err := w.Sm(w2, !orEq)
+	if err != nil {
+		var operator string
+		if orEq {
+			operator = grE
+		} else {
+			operator = gr
+		}
+		return false, opError(w, w2, operator)
+	}
+	return !smRes, nil
 }
 
 func (w WList) String() string { return fmt.Sprintf("%v", []WType(w)) }
@@ -154,4 +354,46 @@ func (w Wmap) Equals(w2 WType) WBool {
 	return true
 }
 
+// Sm will always return false and an error for Wmap as Wmap has
+// no order relation
+func (w Wmap) Sm(w2 WType, orEq bool) (WBool, error) {
+	switch v := w2.(type) {
+	default:
+		var operator string
+		if orEq {
+			operator = smE
+		} else {
+			operator = sm
+		}
+		err := opError(w, v, operator)
+		return false, err
+	}
+}
+
+// Gr (see Sm)
+// a >= b <==> !(a < b)
+// a > b <==> !(a <= b)
+func (w Wmap) Gr(w2 WType, orEq bool) (WBool, error) {
+	smRes, err := w.Sm(w2, !orEq)
+	if err != nil {
+		var operator string
+		if orEq {
+			operator = grE
+		} else {
+			operator = gr
+		}
+		return false, opError(w, w2, operator)
+	}
+	return !smRes, nil
+}
+
 func (w Wmap) String() string { return w.toString(0) }
+
+// Helper functions
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

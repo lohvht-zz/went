@@ -31,8 +31,14 @@ func (i *Interpreter) errorf(format string, args ...interface{}) {
 	panic(fmt.Errorf(format, args...))
 }
 
+// error panics a general error
 func (i *Interpreter) error(err error) {
 	i.errorf("%s", err)
+}
+
+// typeError panics a type error
+func (i *Interpreter) typeError(node Node, err error) {
+	i.typeErrorf("%s", node, err)
 }
 
 func (i *Interpreter) recover(erri *error) {
@@ -95,7 +101,7 @@ func (i *Interpreter) additiveOp(leftRes, rightRes WType, node Node) WType {
 	return WNull{}
 }
 
-// additiveOp handles visit method for "divisive" operators such as
+// divisiveOp handles visit method for "divisive" operators such as
 // '/' and '%' for arithmetic operations such that they handle zero divisions
 // properly
 func (i *Interpreter) divisiveOp(leftRes, rightRes WType, node Node) WType {
@@ -166,16 +172,60 @@ func (i *Interpreter) visitMod(node *ModNode) WType {
 }
 
 func (i *Interpreter) visitEq(node *EqNode) WType {
-	// leftRes := node.left.Accept(i)
-	// rightRes := node.right.Accept(i)
-	return WNull{}
+	leftRes := node.left.Accept(i)
+	rightRes := node.right.Accept(i)
+	if node.IsNot {
+		return !leftRes.Equals(rightRes)
+	}
+	return leftRes.Equals(rightRes)
 }
 
-func (i *Interpreter) visitSm(node *SmNode) WType   { return WNull{} }
-func (i *Interpreter) visitGr(node *GrNode) WType   { return WNull{} }
-func (i *Interpreter) visitIn(node *InNode) WType   { return WNull{} }
-func (i *Interpreter) visitAnd(node *AndNode) WType { return WNull{} }
-func (i *Interpreter) visitOr(node *OrNode) WType   { return WNull{} }
+// visitSm evaluates '<' and '<=' operators
+func (i *Interpreter) visitSm(node *SmNode) WType {
+	leftRes := node.left.Accept(i)
+	rightRes := node.right.Accept(i)
+
+	smRes, err := leftRes.Sm(rightRes, node.OrEq)
+	if err != nil {
+		i.typeError(node, err)
+	}
+	return smRes
+}
+
+// visitGr evaluates '>' and '>=' operators
+func (i *Interpreter) visitGr(node *GrNode) WType {
+	leftRes := node.left.Accept(i)
+	rightRes := node.right.Accept(i)
+
+	grRes, err := leftRes.Gr(rightRes, node.OrEq)
+	if err != nil {
+		i.typeError(node, err)
+	}
+	return grRes
+}
+
+// TODO: confirm grammar spec for `in` keyword
+func (i *Interpreter) visitIn(node *InNode) WType { return WNull{} }
+
+// visitAnd evaluates '&&' operators
+// if 'expr1 && expr2', expr1 if expr1 is false (i.e. zero-value), else expr2
+func (i *Interpreter) visitAnd(node *AndNode) WType {
+	leftRes := node.left.Accept(i)
+	if leftRes.IsZeroValue() {
+		return leftRes
+	}
+	return node.right.Accept(i)
+}
+
+// visitOr evaluates '||' operators
+// if 'expr1 || expr2', expr2 if expr1 is false (i.e. zero-value), else expr2
+func (i *Interpreter) visitOr(node *OrNode) WType {
+	leftRes := node.left.Accept(i)
+	if !leftRes.IsZeroValue() {
+		return leftRes
+	}
+	return node.right.Accept(i)
+}
 
 // Unary Operators
 
@@ -219,6 +269,7 @@ func (i *Interpreter) visitNot(node *NotNode) WType {
 }
 
 // visit literals ==> At its core, these will return WType values
+// TODO: visit literals for list and maps
 func (i *Interpreter) visitNum(n *NumberNode) WType { return WNum(n.Float64) }
 func (i *Interpreter) visitStr(n *StringNode) WType { return WString(n.String()) }
 func (i *Interpreter) visitNull(n *NullNode) WType  { return WNull{} }

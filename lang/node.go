@@ -143,19 +143,19 @@ func (n *EqNode) String() string {
 // SmNode holds either the '<' or '<=' operator between its 2 children
 type SmNode struct {
 	binaryOpNode
-	AndEq bool
+	OrEq bool
 }
 
 // newSm returns a pointer to a SmNode
-func newSm(left Node, right Node, andEq bool, pos Pos, linePos LinePos) *SmNode {
-	return &SmNode{binaryOpNode: binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}, AndEq: andEq}
+func newSm(left Node, right Node, OrEq bool, pos Pos, linePos LinePos) *SmNode {
+	return &SmNode{binaryOpNode: binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}, OrEq: OrEq}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *SmNode) Accept(nw NodeWalker) WType { return nw.visitSm(n) }
 
 func (n *SmNode) String() string {
-	if n.AndEq {
+	if n.OrEq {
 		return "<="
 	}
 	return "<"
@@ -164,19 +164,19 @@ func (n *SmNode) String() string {
 // GrNode holds either the '<' or '<=' operator between its 2 children
 type GrNode struct {
 	binaryOpNode
-	AndEq bool
+	OrEq bool
 }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *GrNode) Accept(nw NodeWalker) WType { return nw.visitGr(n) }
 
 // newGr returns a pointer to a GrNode
-func newGr(left Node, right Node, andEq bool, pos Pos, linePos LinePos) *GrNode {
-	return &GrNode{binaryOpNode: binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}, AndEq: andEq}
+func newGr(left Node, right Node, OrEq bool, pos Pos, linePos LinePos) *GrNode {
+	return &GrNode{binaryOpNode: binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}, OrEq: OrEq}
 }
 
 func (n *GrNode) String() string {
-	if n.AndEq {
+	if n.OrEq {
 		return ">="
 	}
 	return ">"
@@ -185,23 +185,17 @@ func (n *GrNode) String() string {
 // InNode holds either the '!in' or 'in' operator between its 2 children
 type InNode struct {
 	binaryOpNode
-	IsNot bool
 }
 
 // newIn returns a pointer to a InNode
-func newIn(left Node, right Node, isNot bool, pos Pos, linePos LinePos) *InNode {
-	return &InNode{binaryOpNode: binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}, IsNot: isNot}
+func newIn(left Node, right Node, pos Pos, linePos LinePos) *InNode {
+	return &InNode{binaryOpNode: binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *InNode) Accept(nw NodeWalker) WType { return nw.visitIn(n) }
 
-func (n *InNode) String() string {
-	if n.IsNot {
-		return "!in"
-	}
-	return "in"
-}
+func (n *InNode) String() string { return "in" }
 
 // AndNode holds the '&&' operator between its 2 children
 type AndNode struct{ binaryOpNode }
