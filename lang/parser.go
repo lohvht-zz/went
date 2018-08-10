@@ -52,8 +52,10 @@ func (tl *tokenList) peekBottom() token {
 // Parser parses the input string (file or otherwise) and creates an AST at its Root
 // also links the AST to the appropriate scopes
 type Parser struct {
-	Name         string
-	Root         Node   // top-level root of the tree
+	Name string
+	Root Node // top-level root of the AST tree
+	// symtab *SymbolTable // the entire symbol table, global scope, local scope, functions etc.
+	// currentScope *Scope
 	input        string // input text to be parsed
 	tokeniser    *lexer
 	tokens       tokenList // list of token lookaheads
@@ -94,14 +96,12 @@ func (p *Parser) peek() token {
 // errorf formats the error and terminates processing.
 func (p *Parser) errorf(format string, args ...interface{}) {
 	p.Root = nil
-	format = fmt.Sprintf("Syntax Error: %s:%d: %s", p.Name, p.currentToken.line, format)
+	format = fmt.Sprintf("%s line %d: SyntaxError - %s", p.Name, p.currentToken.line, format)
 	panic(fmt.Errorf(format, args...))
 }
 
 // error terminates the processing.
-func (p *Parser) error(err error) {
-	p.errorf("%s", err)
-}
+func (p *Parser) error(err error) { p.errorf("%s", err) }
 
 // expect consumes the next token and guarantees it has the required type.
 func (p *Parser) expect(context string, expected tokenType) token {
@@ -172,12 +172,20 @@ func (p *Parser) parse() {
 
 // Grammar rules
 
+// func (p *Parser) stmt() Node {
+// 	for tknTyp := p.peek().typ {
+
+// 	}
+// }
+
+func (p *Parser) expr() Node { return p.orEval() }
+
 // orEval: andEval ("||" orEval)*;
 func (p *Parser) orEval() Node {
 	node := p.andEval()
 	for p.peek().typ == tokenOr {
 		tkn := p.next()
-		node = newOr(node, p.andEval(), tkn.pos, tkn.line)
+		node = newOr(node, p.andEval(), tkn)
 	}
 	return node
 }
@@ -187,7 +195,7 @@ func (p *Parser) andEval() Node {
 	node := p.notEval()
 	for p.peek().typ == tokenAnd {
 		tkn := p.next()
-		node = newAnd(node, p.notEval(), tkn.pos, tkn.line)
+		node = newAnd(node, p.notEval(), tkn)
 	}
 	return node
 }
@@ -197,7 +205,7 @@ func (p *Parser) notEval() Node {
 	switch p.peek().typ {
 	case tokenLogicalNot:
 		tkn := p.next()
-		return newNot(p.notEval(), tkn.pos, tkn.line)
+		return newNot(p.notEval(), tkn)
 	default:
 		return p.comparison()
 	}
@@ -212,16 +220,16 @@ Loop:
 		switch p.peek().typ {
 		case tokenEquals, tokenNotEquals:
 			tkn := p.next()
-			node = newEq(node, p.smExpr(), tkn.typ == tokenNotEquals, tkn.pos, tkn.line)
+			node = newEq(node, p.smExpr(), tkn.typ == tokenNotEquals, tkn)
 		case tokenSmaller, tokenSmallerEquals:
 			tkn := p.next()
-			node = newSm(node, p.smExpr(), tkn.typ == tokenSmallerEquals, tkn.pos, tkn.line)
+			node = newSm(node, p.smExpr(), tkn.typ == tokenSmallerEquals, tkn)
 		case tokenGreater, tokenGreaterEquals:
 			tkn := p.next()
-			node = newGr(node, p.smExpr(), tkn.typ == tokenGreaterEquals, tkn.pos, tkn.line)
+			node = newGr(node, p.smExpr(), tkn.typ == tokenGreaterEquals, tkn)
 		case tokenIn:
 			tkn := p.next()
-			node = newIn(node, p.smExpr(), tkn.pos, tkn.line)
+			node = newIn(node, p.smExpr(), tkn)
 		default:
 			break Loop
 		}
@@ -237,10 +245,10 @@ Loop:
 		switch p.peek().typ {
 		case tokenPlus:
 			tkn := p.next()
-			node = newAdd(node, p.term(), tkn.pos, tkn.line)
+			node = newAdd(node, p.term(), tkn)
 		case tokenMinus:
 			tkn := p.next()
-			node = newSubtract(node, p.term(), tkn.pos, tkn.line)
+			node = newSubtract(node, p.term(), tkn)
 		default:
 			break Loop
 		}
@@ -256,13 +264,13 @@ Loop:
 		switch p.peek().typ {
 		case tokenMult:
 			tkn := p.next()
-			node = newMult(node, p.factor(), tkn.pos, tkn.line)
+			node = newMult(node, p.factor(), tkn)
 		case tokenDiv:
 			tkn := p.next()
-			node = newDiv(node, p.factor(), tkn.pos, tkn.line)
+			node = newDiv(node, p.factor(), tkn)
 		case tokenMod:
 			tkn := p.next()
-			node = newMod(node, p.factor(), tkn.pos, tkn.line)
+			node = newMod(node, p.factor(), tkn)
 		default:
 			break Loop
 		}
@@ -275,17 +283,20 @@ func (p *Parser) factor() Node {
 	switch p.peek().typ {
 	case tokenPlus:
 		tkn := p.next()
-		return newPlus(p.factor(), tkn.pos, tkn.line)
+		return newPlus(p.factor(), tkn)
 	case tokenMinus:
 		tkn := p.next()
-		return newMinus(p.factor(), tkn.pos, tkn.line)
+		return newMinus(p.factor(), tkn)
 	default:
 		return p.atom()
 	}
 }
 
-// atom: "[" [exprList] "]" | "expr" | ID | NUM | STR | RAWSTR | "null" | "false" | "true";
+// atom: "[" [exprList] "]" | "{" mapList "}" | "(" expr ")" | ID | NUM | STR |
+// RAWSTR | "null" | "false" | "true";
 // exprList: orEval ("," orEval)* [","];
+// mapList: keyval ("," keyval)* [","];
+// keyval: (ID | STR) ":" expr;
 func (p *Parser) atom() Node {
 	tkn := p.expectRange("atom type check", tokenIdentifier, tokenNumber,
 		tokenRawString, tokenQuotedString, tokenNull, tokenFalse, tokenTrue,
@@ -293,17 +304,17 @@ func (p *Parser) atom() Node {
 	)
 	switch tkn.typ {
 	case tokenNumber:
-		n, err := newNumber(tkn.value, tkn.pos, tkn.line)
+		n, err := newNumber(tkn.value, tkn)
 		if err != nil {
 			p.error(err)
 		}
 		return n
 	case tokenRawString, tokenQuotedString:
-		return newString(tkn.value, tkn.pos, tkn.line)
+		return newString(tkn.value, tkn)
 	case tokenNull:
-		return newNull(tkn.value, tkn.pos, tkn.line)
+		return newNull(tkn.value, tkn)
 	case tokenFalse, tokenTrue:
-		n, err := newBool(tkn.value, tkn.typ, tkn.pos, tkn.line)
+		n, err := newBool(tkn.value, tkn.typ, tkn)
 		if err != nil {
 			p.error(err)
 		}
@@ -315,13 +326,16 @@ func (p *Parser) atom() Node {
 	case tokenLeftSquare:
 		elements := []Node{p.orEval()}
 		for p.peek().typ == tokenComma {
-			p.next()                              // consume the comma token
-			if p.peek().typ != tokenRightSquare { // if the following token isn't ']'
+			p.next() // consume the comma token
+			// if the following token isn't ']' handles dangling commas as well
+			if p.peek().typ != tokenRightSquare {
 				elements = append(elements, p.orEval())
 			}
 		}
 		p.expect("closing square brackets, expected ']'", tokenRightSquare)
-		return newList(elements, tkn.pos, tkn.line)
+		return newList(elements, tkn)
+	// case tokenLeftCurly:
+
 	default:
 		p.unexpected("atom", tkn)
 		return nil

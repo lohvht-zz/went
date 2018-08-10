@@ -11,34 +11,69 @@
   4. else, if loop has both "break" and "default", return their respective values, however the types of both these values must be equal
   (If in the case of multiple breaks, all evaluated values must be the same type)
  -->
-ifExpr: "if" expr blockExpr ("elif" expr blockExpr)* ["else" blockExpr];
-whileExpr: "while" expr blockExpr "default" blockExpr
-forExpr: "for" exprList "in" expr blockExpr "default" blockExpr
-blockExpr: "{" (expr ";")* "}" <!-- TODO: ASI for blockExpr => Follow golang's ASI rule 1 https://golang.org/ref/spec#Semicolons -->
 
+# Inputs
+
+```
+input: stmt* EOF
+
+```
+
+# Statements
+```
+stmt: (smallStmt | compoundStmt) ";";
+smallStmt: exprStmt | loopCtlStmt | returnStmt;
+
+exprStmt: exprList (augAssign exprList | ('=' exprList)*);
+augAssign: "+=" | "-=" | "/=" | "*=" | "%=";
+
+loopCtlStmt: breakStmt | continueStmt;
+breakStmt: "break" [exprList];
+continueStmt: "continue";
+returnStmt: "return" [exprList];
+
+compoundStmt: ifStmt | whileStmt | forStmt | funcDef;
+ifStmt: "if" expr block ("elif" expr block)* ["else" block];
+whileStmt: "while" expr block ["default" block];
+forStmt: "for" exprList "in" expr block ["default" block];
+
+funcDef: "func" ID parameters ":" block;
+parameters: "(" [argList] ")";
+argList: ID (',' ID)*;
+
+block: "{" stmt+ "}";
+```
+
+# Expressions
+```
 expr: orEval;
-
 orEval: andEval ("||" orEval)*;
 andEval: notEval ("&&" notEval)*;
 notEval: "!" notEval | comparison;
 comparison: smExpr (compOp smExpr)*;
 compOp: "==" | "!=" | "<" | ">" | "<=" | ">=" | ["!"] "in";
 
-smExpr: term (("+" | "-") term)*;
-term: factor (("*" | "/" | "%") factor)*;
-factor: ("+" | "-") factor | atomExpr;
+smExpr: term (addOp term)*; 
+term: factor (multOp factor)*;
+factor: unaryOp factor | atomExpr;
+addOp: "+" | "-";
+multOp: "*" | "/" | "%";
+unaryOp: "+" | "-";
 
-atomExpr: atom trailer*;
-trailer: "(" [argList] ")" | "[" slice "]" | "." ID;
-slice: expr | [expr] ":" [expr] [":" [expr]];
-argList: arg ("," arg)* [","];
-arg: expr | ID "=" expr;
+atomExpr: atom trailer*; // TODO: To be implemented
+trailer: "(" [argList] ")" | "[" slice "]" | "." ID; // TODO: To be implemented
+slice: orEval | [orEval] ":" [orEval] [":" [orEval]]; // TODO: To be implemented
+argList: arg ("," arg)* [","]; // TODO: To be implemented
+arg: orEval | ID "=" orEval; // TODO: To be implemented
 
 <!-- a[1], a[1:2], a[:2], a[1:] -->
-<!-- "{" mapList "}" | -->
-atom: "[" [exprList] "]" | "(" expr ")" |
+
+// TODO: Map To be implemented
+atom: "[" [exprList] "]" | "{" mapList "}" | "(" orEval ")" |
   ID | NUM | STR | RAWSTR | "null" | "false" | "true";
 
-exprList: expr ("," expr)* [","];
-<!-- mapList: keyval ("," keyval)* [","];
-keyval: ID ":" expr; -->
+// TODO: To be implemented
+exprList: orEval ("," orEval)* [","];
+mapList: keyval ("," keyval)* [","];
+keyval: ID ":" orEval;
+```

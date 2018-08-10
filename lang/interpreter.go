@@ -16,13 +16,13 @@ type Interpreter struct {
 
 // typeErrorf formats the error string before passing into errorf() for panicking
 func (i *Interpreter) typeErrorf(format string, node Node, args ...interface{}) {
-	format = fmt.Sprintf("Type Error: %s:%d: %s", i.name, node.LinePosition(), format)
+	format = fmt.Sprintf("TypeError: %s in %s, line %d", format, i.name, node.LinePosition())
 	i.errorf(format, args...)
 }
 
 // zeroDivisionErrorf formats the error string before passing into errorf() for panicking
 func (i *Interpreter) zeroDivisionErrorf(format string, node Node, args ...interface{}) {
-	format = fmt.Sprintf("Zero Division Error: %s:%d: %s", i.name, node.LinePosition(), format)
+	format = fmt.Sprintf("ZeroDivisionError: %s in %s, line %d", format, i.name, node.LinePosition())
 	i.errorf(format, args...)
 }
 

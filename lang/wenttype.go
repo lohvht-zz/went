@@ -15,6 +15,10 @@ type WType interface {
 	String() string
 }
 
+func opError(w1, w2 WType, compString string) error {
+	return fmt.Errorf("'%s' not supported between types '%T' and '%T'", compString, w1, w2)
+}
+
 var (
 	sm   = "<"
 	smE  = "<="
@@ -23,10 +27,6 @@ var (
 	eql  = "=="
 	nEql = "!="
 )
-
-func opError(w1, w2 WType, compString string) error {
-	return fmt.Errorf("'%s' not supported between types '%T' and '%T'", compString, w1, w2)
-}
 
 // WNull is the null/none type in went, it is a value for no values
 type WNull struct{}
@@ -301,7 +301,18 @@ func (w WList) Gr(w2 WType, orEq bool) (WBool, error) {
 	return !smRes, nil
 }
 
-func (w WList) String() string { return fmt.Sprintf("%v", []WType(w)) }
+func (w WList) String() string {
+	var buffer bytes.Buffer
+	buffer.WriteString("[")
+	for i, v := range w {
+		buffer.WriteString(v.String())
+		if i != len(w)-1 {
+			buffer.WriteString(", ")
+		}
+	}
+	buffer.WriteString("]")
+	return buffer.String()
+}
 
 var (
 	tab        = "\t"
@@ -313,6 +324,7 @@ var (
 // a data structure that maps strings to other values in wentlang
 type Wmap map[string]WType
 
+// toString returns a string that is essentially a pretty-printed formatted Wmap
 func (w Wmap) toString(tabLevel int) string {
 	var buffer bytes.Buffer
 	buffer.WriteString("{\n")

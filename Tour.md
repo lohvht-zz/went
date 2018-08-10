@@ -208,3 +208,15 @@ if -1 not in arr1 {
   echo('Boo, can't take your negativity here!')
 }
 ```
+
+# Execution Model
+
+## Structure of a program
+A *`went`* program is constructed from code `block`s. A `block` is a piece of `went` program text that is executed as a single unit. The following are considered `block`s: a function body, a module.
+
+Each command typed interactively (through the `interpreter` shell) is a block. A script file (i.e. a file given as an input from the command line argument to the `interpreter`) is a code block (NOTE: if a file has a live command typed, it will pause the execution in the same scope)
+
+A code block is executed in an *execution frame*. A frame contains some administrative information (used for debugging) and determines where and how execution continues after the code block's execution has completed.
+
+## Naming and Binding
+### Nam

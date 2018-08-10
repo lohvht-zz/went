@@ -71,6 +71,7 @@ var (
 	tknIn      = makeToken(tokenIn, "in")
 	tknBreak   = makeToken(tokenBreak, "break")
 	tknCont    = makeToken(tokenCont, "continue")
+	tknVar     = makeToken(tokenVar, "var")
 )
 
 type lexTestcase struct {
@@ -111,9 +112,9 @@ var lexTests = []lexTestcase{
 		},
 	},
 	{"keywords",
-		"func if else elif for null false true while return break continue in",
+		"func if else elif for null false true while return break continue in var",
 		[]token{tknFuncDef, tknIf, tknElse, tknElseIf, tknFor, tknNull, tknF, tknT,
-			tknWhile, tknReturn, tknBreak, tknCont, tknIn, tknEOF,
+			tknWhile, tknReturn, tknBreak, tknCont, tknIn, tknVar, tknEOF,
 		},
 	},
 	{"arithmetic operators",

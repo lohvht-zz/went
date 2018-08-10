@@ -20,6 +20,10 @@ type token struct {
 	line  LinePos   // Line number at the start of this item
 }
 
+func (tok token) Position() Pos { return tok.pos }
+
+func (tok token) LinePosition() LinePos { return tok.line }
+
 func (tok token) String() string {
 	switch {
 	case tok.typ == tokenEOF:
@@ -98,6 +102,7 @@ const (
 	tokenIn      // 'in' keyword
 	tokenBreak   // 'break' keyword
 	tokenCont    // 'continue' keyword
+	tokenVar     // 'var' keyword (variable declaration)
 )
 
 var tokenNames = map[tokenType]string{
@@ -154,6 +159,7 @@ var tokenNames = map[tokenType]string{
 	tokenWhile:  "while",
 	tokenReturn: "return",
 	tokenIn:     "in",
+	tokenVar:    "var",
 }
 
 func (i tokenType) String() string {
@@ -178,9 +184,10 @@ var keyMap = map[string]tokenType{
 	"in":       tokenIn,
 	"break":    tokenBreak,
 	"continue": tokenCont,
+	"var":      tokenVar,
 }
 
-var parenMap = map[rune]rune{
+var bracketMap = map[rune]rune{
 	')': '(',
 	']': '[',
 	'}': '{',
@@ -395,6 +402,8 @@ func lexCode(l *lexer) stateFunc {
 	case isEndOfLine(r): // detects \r or \n
 		l.backup()
 		return lexNewline
+	case r == ';':
+		l.emit(tokenSemicolon)
 	case r == ':':
 		l.emit(tokenColon)
 	case r == ',':
@@ -447,6 +456,8 @@ func lexCode(l *lexer) stateFunc {
 	case isAlphaNumeric(r):
 		l.backup()
 		return lexIdentifier
+	case r == ';':
+		l.emit(tokenSemicolon)
 	case r == '(', r == '{', r == '[': // opening brackets
 		switch r {
 		case '(':
@@ -459,20 +470,27 @@ func lexCode(l *lexer) stateFunc {
 		l.bracketStack.push(r)
 	case r == ')', r == '}', r == ']':
 		if l.bracketStack.empty() {
-			return l.errorf("unexpected right paren %#U", r)
-		} else if toCheck := l.bracketStack.pop(); toCheck != parenMap[r] {
-			return l.errorf("unexpected right paren %#U", r)
+			return l.errorf("unexpected right bracket %#U", r)
+		} else if toCheck := l.bracketStack.pop(); toCheck != bracketMap[r] {
+			return l.errorf("unexpected right bracket %#U", r)
 		}
 		switch r {
 		case ')':
 			l.emit(tokenRightRound)
 		case '}':
+			// ASI Rule 2: To allow complex statements to occupy a single line
+			// a semicolon may be omitted before closing right curly bracket
+			if l.prevTokTyp != tokenSemicolon {
+				l.backup() // backup to not accidentally emit the right curly bracket
+				l.emit(tokenSemicolon)
+				l.next() // advance forward to contain the right curly bracket again
+			}
 			l.emit(tokenRightCurly)
 		case ']':
 			l.emit(tokenRightSquare)
 		}
 	default:
-		return l.errorf("Unrecognised character in code: %#U", r)
+		return l.errorf("unrecognised character in code: %#U", r)
 	}
 	return lexCode
 }
@@ -481,7 +499,7 @@ func lexCode(l *lexer) stateFunc {
 func lexEOF(l *lexer) stateFunc {
 	if !l.bracketStack.empty() {
 		r := l.bracketStack.pop()
-		return l.errorf("unclosed left paren: %#U", r)
+		return l.errorf("unclosed left bracket: %#U", r)
 	}
 	l.emit(tokenEOF)
 	return nil
@@ -498,11 +516,11 @@ func lexSpace(l *lexer) stateFunc {
 }
 
 // lexNewline scans for a run of newline chars ('\n')
-// This method also does the automatic semicolon insertions with the following
-// rules:
+// This method also does the automatic semicolon insertions (ASI rule 1) with
+// the following rules for newlines:
 // 1. the token is an identifier, or string/boolean/number literal
 // 2. the token is a `break`, `return` or `continue`
-// 3. token closes a round or square bracket (')', ']')
+// 3. token closes a round, square, or curly bracket (')', ']', '}')
 func lexNewline(l *lexer) stateFunc {
 Loop:
 	for {
@@ -517,7 +535,7 @@ Loop:
 	switch l.prevTokTyp {
 	case tokenIdentifier, tokenRawString, tokenQuotedString, tokenFalse,
 		tokenTrue, tokenNumber, tokenBreak, tokenCont, tokenReturn,
-		tokenRightRound, tokenRightSquare:
+		tokenRightRound, tokenRightSquare, tokenRightCurly:
 		l.emit(tokenSemicolon)
 	default:
 		l.ignore(false) // do not count the spaces as the next() already adds

@@ -24,25 +24,18 @@ type Node interface {
 // this file was parsed
 type Pos int
 
-// Position returns itself, provides an easy default implementation for
-// embedding in a Node. Embedded in all non-trivial Nodes
-func (p Pos) Position() Pos { return p }
-
 // LinePos represents the line position of the original input text from which
 // the file was parsed
 type LinePos int
 
-// LinePosition returns itself, provides an easy default implementation for
-// embedding in a Node. Embedded in all non-trivial Nodes
-func (l LinePos) LinePosition() LinePos { return l }
+// type NodeType int
 
 // binaryOpNode holds a binary operator between a left and right node
 // This struct is meant to be embedded within all other binary operation
 // structs
 // Logical Binary Operator: "||", "&&"
 type binaryOpNode struct {
-	Pos
-	LinePos
+	token
 	scope Scope
 	left  Node
 	right Node
@@ -56,8 +49,8 @@ func (n binaryOpNode) Scope() Scope { return n.scope }
 type AddNode struct{ binaryOpNode }
 
 // newAdd returns a pointer to a AddNode
-func newAdd(left Node, right Node, pos Pos, linePos LinePos) *AddNode {
-	return &AddNode{binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}}
+func newAdd(left Node, right Node, tkn token) *AddNode {
+	return &AddNode{binaryOpNode{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -69,8 +62,8 @@ func (n *AddNode) String() string { return "+" }
 type SubtractNode struct{ binaryOpNode }
 
 // newSubtract returns a pointer to a SubtractNode
-func newSubtract(left Node, right Node, pos Pos, linePos LinePos) *SubtractNode {
-	return &SubtractNode{binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}}
+func newSubtract(left Node, right Node, tkn token) *SubtractNode {
+	return &SubtractNode{binaryOpNode{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -82,8 +75,8 @@ func (n *SubtractNode) String() string { return "-" }
 type MultNode struct{ binaryOpNode }
 
 // newMult returns a pointer to a MultNode
-func newMult(left Node, right Node, pos Pos, linePos LinePos) *MultNode {
-	return &MultNode{binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}}
+func newMult(left Node, right Node, tkn token) *MultNode {
+	return &MultNode{binaryOpNode{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -95,8 +88,8 @@ func (n *MultNode) String() string { return "*" }
 type DivNode struct{ binaryOpNode }
 
 // newDiv returns a pointer to a DivNode
-func newDiv(left Node, right Node, pos Pos, linePos LinePos) *DivNode {
-	return &DivNode{binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}}
+func newDiv(left Node, right Node, tkn token) *DivNode {
+	return &DivNode{binaryOpNode{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -108,8 +101,8 @@ func (n *DivNode) String() string { return "/" }
 type ModNode struct{ binaryOpNode }
 
 // newMod returns a pointer to a ModNode
-func newMod(left Node, right Node, pos Pos, linePos LinePos) *ModNode {
-	return &ModNode{binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}}
+func newMod(left Node, right Node, tkn token) *ModNode {
+	return &ModNode{binaryOpNode{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -126,8 +119,8 @@ type EqNode struct {
 }
 
 // newEq returns a pointer to a EqNode
-func newEq(left Node, right Node, isNot bool, pos Pos, linePos LinePos) *EqNode {
-	return &EqNode{binaryOpNode: binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}, IsNot: isNot}
+func newEq(left Node, right Node, isNot bool, tkn token) *EqNode {
+	return &EqNode{binaryOpNode: binaryOpNode{left: left, right: right, token: tkn}, IsNot: isNot}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -147,8 +140,8 @@ type SmNode struct {
 }
 
 // newSm returns a pointer to a SmNode
-func newSm(left Node, right Node, OrEq bool, pos Pos, linePos LinePos) *SmNode {
-	return &SmNode{binaryOpNode: binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}, OrEq: OrEq}
+func newSm(left Node, right Node, OrEq bool, tkn token) *SmNode {
+	return &SmNode{binaryOpNode: binaryOpNode{left: left, right: right, token: tkn}, OrEq: OrEq}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -171,8 +164,8 @@ type GrNode struct {
 func (n *GrNode) Accept(nw NodeWalker) WType { return nw.visitGr(n) }
 
 // newGr returns a pointer to a GrNode
-func newGr(left Node, right Node, OrEq bool, pos Pos, linePos LinePos) *GrNode {
-	return &GrNode{binaryOpNode: binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}, OrEq: OrEq}
+func newGr(left Node, right Node, OrEq bool, tkn token) *GrNode {
+	return &GrNode{binaryOpNode: binaryOpNode{left: left, right: right, token: tkn}, OrEq: OrEq}
 }
 
 func (n *GrNode) String() string {
@@ -188,8 +181,8 @@ type InNode struct {
 }
 
 // newIn returns a pointer to a InNode
-func newIn(left Node, right Node, pos Pos, linePos LinePos) *InNode {
-	return &InNode{binaryOpNode: binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}}
+func newIn(left Node, right Node, tkn token) *InNode {
+	return &InNode{binaryOpNode: binaryOpNode{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -201,8 +194,8 @@ func (n *InNode) String() string { return "in" }
 type AndNode struct{ binaryOpNode }
 
 // newAnd returns a pointer to a AndNode
-func newAnd(left Node, right Node, pos Pos, linePos LinePos) *AndNode {
-	return &AndNode{binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}}
+func newAnd(left Node, right Node, tkn token) *AndNode {
+	return &AndNode{binaryOpNode{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -214,8 +207,8 @@ func (n *AndNode) String() string { return "&&" }
 type OrNode struct{ binaryOpNode }
 
 // newOr returns a pointer to a OrNode
-func newOr(left Node, right Node, pos Pos, linePos LinePos) *OrNode {
-	return &OrNode{binaryOpNode{left: left, right: right, Pos: pos, LinePos: linePos}}
+func newOr(left Node, right Node, tkn token) *OrNode {
+	return &OrNode{binaryOpNode{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -227,8 +220,7 @@ func (n *OrNode) String() string { return "||" }
 
 // unaryOpNode holds a unary operator as well as an operand node
 type unaryOpNode struct {
-	Pos
-	LinePos
+	token
 	scope   Scope
 	operand Node
 }
@@ -241,8 +233,8 @@ func (n unaryOpNode) Scope() Scope {
 type PlusNode struct{ unaryOpNode }
 
 // newPlus returns a pointer to a PlusNode
-func newPlus(operand Node, pos Pos, linePos LinePos) *PlusNode {
-	return &PlusNode{unaryOpNode{operand: operand, Pos: pos, LinePos: linePos}}
+func newPlus(operand Node, tkn token) *PlusNode {
+	return &PlusNode{unaryOpNode{operand: operand, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -254,8 +246,8 @@ func (n *PlusNode) String() string { return "+" }
 type MinusNode struct{ unaryOpNode }
 
 // newMinus returns a pointer to a MinusNode
-func newMinus(operand Node, pos Pos, linePos LinePos) *MinusNode {
-	return &MinusNode{unaryOpNode{operand: operand, Pos: pos, LinePos: linePos}}
+func newMinus(operand Node, tkn token) *MinusNode {
+	return &MinusNode{unaryOpNode{operand: operand, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -267,8 +259,8 @@ func (n *MinusNode) String() string { return "-" }
 type NotNode struct{ unaryOpNode }
 
 // newNot returns a pointer to a NotNode
-func newNot(operand Node, pos Pos, linePos LinePos) *NotNode {
-	return &NotNode{unaryOpNode{operand: operand, Pos: pos, LinePos: linePos}}
+func newNot(operand Node, tkn token) *NotNode {
+	return &NotNode{unaryOpNode{operand: operand, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -279,8 +271,7 @@ func (n *NotNode) String() string { return "!" }
 // Literals
 
 type litNode struct {
-	Pos
-	LinePos
+	token
 	scope Scope
 }
 
@@ -299,8 +290,8 @@ type NumberNode struct {
 }
 
 // newNumber creates a new pointer to the NumberNode
-func newNumber(text string, pos Pos, linePos LinePos) (*NumberNode, error) {
-	n := &NumberNode{litNode: litNode{Pos: pos, LinePos: linePos}, Text: text}
+func newNumber(text string, tkn token) (*NumberNode, error) {
+	n := &NumberNode{litNode: litNode{token: tkn}, Text: text}
 	i, err := strconv.ParseInt(text, 0, 64)
 	// If an int extraction succeeded, promote the float
 	if err == nil {
@@ -347,8 +338,8 @@ type StringNode struct {
 }
 
 // newString creates a new pointer to the StringNode
-func newString(text string, pos Pos, linePos LinePos) *StringNode {
-	return &StringNode{litNode: litNode{Pos: pos, LinePos: linePos}, Value: text}
+func newString(text string, tkn token) *StringNode {
+	return &StringNode{litNode: litNode{token: tkn}, Value: text}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -365,8 +356,8 @@ type NullNode struct {
 }
 
 // newNull creates a new pointer to the NullNode
-func newNull(text string, pos Pos, linePos LinePos) *NullNode {
-	return &NullNode{litNode: litNode{Pos: pos, LinePos: linePos}, Text: text}
+func newNull(text string, tkn token) *NullNode {
+	return &NullNode{litNode: litNode{token: tkn}, Text: text}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -382,12 +373,12 @@ type BoolNode struct {
 }
 
 // newBool creates a new pointer to the BoolNode
-func newBool(text string, tknTyp tokenType, pos Pos, linePos LinePos) (*BoolNode, error) {
+func newBool(text string, tknTyp tokenType, tkn token) (*BoolNode, error) {
 	switch tknTyp {
 	case tokenTrue:
-		return &BoolNode{litNode: litNode{Pos: pos, LinePos: linePos}, Value: true, Text: text}, nil
+		return &BoolNode{litNode: litNode{token: tkn}, Value: true, Text: text}, nil
 	case tokenFalse:
-		return &BoolNode{litNode: litNode{Pos: pos, LinePos: linePos}, Value: false, Text: text}, nil
+		return &BoolNode{litNode: litNode{token: tkn}, Value: false, Text: text}, nil
 	default:
 		return nil, fmt.Errorf("illegal bool syntax: %q", text)
 	}
@@ -404,8 +395,8 @@ type ListNode struct {
 	elements []Node
 }
 
-func newList(elems []Node, pos Pos, linePos LinePos) *ListNode {
-	return &ListNode{litNode: litNode{Pos: pos, LinePos: linePos}, elements: elems}
+func newList(elems []Node, tkn token) *ListNode {
+	return &ListNode{litNode: litNode{token: tkn}, elements: elems}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
