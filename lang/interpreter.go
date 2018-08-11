@@ -25,7 +25,6 @@ func (i *Interpreter) zeroDivisionErrorf(format string, node Node, args ...inter
 	format = fmt.Sprintf("ZeroDivisionError: %s in %s, line %d", format, i.name, node.LinePosition())
 	i.errorf(format, args...)
 }
-
 func (i *Interpreter) errorf(format string, args ...interface{}) {
 	i.Root = nil // Discard the AST
 	panic(fmt.Errorf(format, args...))
@@ -82,11 +81,11 @@ func (i *Interpreter) additiveOp(leftRes, rightRes WType, node Node) WType {
 	b, bOk := rightRes.(WNum)
 	if aOk && bOk {
 		switch node.(type) {
-		case *AddNode:
+		case *AddExpr:
 			return a + b
-		case *SubtractNode:
+		case *SubtractExpr:
 			return a - b
-		case *MultNode:
+		case *MultExpr:
 			return a * b
 		}
 	}
@@ -116,9 +115,9 @@ func (i *Interpreter) divisiveOp(leftRes, rightRes WType, node Node) WType {
 			}
 		}
 		switch node.(type) {
-		case *DivNode:
+		case *DivExpr:
 			return a / b
-		case *ModNode:
+		case *ModExpr:
 			if a.IsInt() && b.IsInt() {
 				return WNum(int64(a) % int64(b))
 			}
@@ -136,7 +135,7 @@ func (i *Interpreter) divisiveOp(leftRes, rightRes WType, node Node) WType {
 	return WNull{}
 }
 
-func (i *Interpreter) visitAdd(node *AddNode) WType {
+func (i *Interpreter) visitAdd(node *AddExpr) WType {
 	leftRes := node.left.Accept(i)
 	rightRes := node.right.Accept(i)
 	a, aOk := leftRes.(WString)
@@ -147,31 +146,31 @@ func (i *Interpreter) visitAdd(node *AddNode) WType {
 	return i.additiveOp(leftRes, rightRes, node)
 }
 
-func (i *Interpreter) visitSubtract(node *SubtractNode) WType {
+func (i *Interpreter) visitSubtract(node *SubtractExpr) WType {
 	leftRes := node.left.Accept(i)
 	rightRes := node.right.Accept(i)
 	return i.additiveOp(leftRes, rightRes, node)
 }
 
-func (i *Interpreter) visitMult(node *MultNode) WType {
+func (i *Interpreter) visitMult(node *MultExpr) WType {
 	leftRes := node.left.Accept(i)
 	rightRes := node.right.Accept(i)
 	return i.additiveOp(leftRes, rightRes, node)
 }
 
-func (i *Interpreter) visitDiv(node *DivNode) WType {
+func (i *Interpreter) visitDiv(node *DivExpr) WType {
 	leftRes := node.left.Accept(i)
 	rightRes := node.right.Accept(i)
 	return i.divisiveOp(leftRes, rightRes, node)
 }
 
-func (i *Interpreter) visitMod(node *ModNode) WType {
+func (i *Interpreter) visitMod(node *ModExpr) WType {
 	leftRes := node.left.Accept(i)
 	rightRes := node.right.Accept(i)
 	return i.divisiveOp(leftRes, rightRes, node)
 }
 
-func (i *Interpreter) visitEq(node *EqNode) WType {
+func (i *Interpreter) visitEq(node *EqExpr) WType {
 	leftRes := node.left.Accept(i)
 	rightRes := node.right.Accept(i)
 	if node.IsNot {
@@ -181,7 +180,7 @@ func (i *Interpreter) visitEq(node *EqNode) WType {
 }
 
 // visitSm evaluates '<' and '<=' operators
-func (i *Interpreter) visitSm(node *SmNode) WType {
+func (i *Interpreter) visitSm(node *SmExpr) WType {
 	leftRes := node.left.Accept(i)
 	rightRes := node.right.Accept(i)
 
@@ -193,7 +192,7 @@ func (i *Interpreter) visitSm(node *SmNode) WType {
 }
 
 // visitGr evaluates '>' and '>=' operators
-func (i *Interpreter) visitGr(node *GrNode) WType {
+func (i *Interpreter) visitGr(node *GrExpr) WType {
 	leftRes := node.left.Accept(i)
 	rightRes := node.right.Accept(i)
 
@@ -205,11 +204,11 @@ func (i *Interpreter) visitGr(node *GrNode) WType {
 }
 
 // TODO: confirm grammar spec for `in` keyword
-func (i *Interpreter) visitIn(node *InNode) WType { return WNull{} }
+func (i *Interpreter) visitIn(node *InExpr) WType { return WNull{} }
 
 // visitAnd evaluates '&&' operators
 // if 'expr1 && expr2', expr1 if expr1 is false (i.e. zero-value), else expr2
-func (i *Interpreter) visitAnd(node *AndNode) WType {
+func (i *Interpreter) visitAnd(node *AndExpr) WType {
 	leftRes := node.left.Accept(i)
 	if leftRes.IsZeroValue() {
 		return leftRes
@@ -219,7 +218,7 @@ func (i *Interpreter) visitAnd(node *AndNode) WType {
 
 // visitOr evaluates '||' operators
 // if 'expr1 || expr2', expr2 if expr1 is false (i.e. zero-value), else expr2
-func (i *Interpreter) visitOr(node *OrNode) WType {
+func (i *Interpreter) visitOr(node *OrExpr) WType {
 	leftRes := node.left.Accept(i)
 	if !leftRes.IsZeroValue() {
 		return leftRes
@@ -230,7 +229,7 @@ func (i *Interpreter) visitOr(node *OrNode) WType {
 // Unary Operators
 
 // visitPlus evaluates a node
-func (i *Interpreter) visitPlus(node *PlusNode) WType {
+func (i *Interpreter) visitPlus(node *PlusExpr) WType {
 	switch v := node.operand.Accept(i).(type) {
 	case WNum:
 		return v
@@ -242,7 +241,7 @@ func (i *Interpreter) visitPlus(node *PlusNode) WType {
 	return WNull{}
 }
 
-func (i *Interpreter) visitMinus(node *MinusNode) WType {
+func (i *Interpreter) visitMinus(node *MinusExpr) WType {
 	switch v := node.operand.Accept(i).(type) {
 	case WNum:
 		return -v
@@ -256,7 +255,7 @@ func (i *Interpreter) visitMinus(node *MinusNode) WType {
 
 // visitNot returns true if its operand are zero values (i.e. are false)
 // else returns false
-func (i *Interpreter) visitNot(node *NotNode) WType {
+func (i *Interpreter) visitNot(node *NotExpr) WType {
 	switch v := node.operand.Accept(i).(type) {
 	case WType:
 		return v.IsZeroValue()
@@ -271,15 +270,17 @@ func (i *Interpreter) visitNot(node *NotNode) WType {
 // visit literals ==> At its core, these will return WType values
 
 // TODO: visit literals for maps
-func (i *Interpreter) visitNum(n *NumberNode) WType { return WNum(n.Float64) }
-func (i *Interpreter) visitStr(n *StringNode) WType { return WString(n.String()) }
-func (i *Interpreter) visitNull(n *NullNode) WType  { return WNull{} }
-func (i *Interpreter) visitBool(n *BoolNode) WType  { return WBool(n.Value) }
+func (i *Interpreter) visitNum(n *Num) WType   { return WNum(n.Float64) }
+func (i *Interpreter) visitStr(n *Str) WType   { return WString(n.String()) }
+func (i *Interpreter) visitNull(n *Null) WType { return WNull{} }
+func (i *Interpreter) visitBool(n *Bool) WType { return WBool(n.Value) }
 
-func (i *Interpreter) visitList(n *ListNode) WType {
+func (i *Interpreter) visitList(n *List) WType {
 	wl := WList{}
 	for _, elNode := range n.elements {
 		wl = append(wl, elNode.Accept(i))
 	}
 	return wl
 }
+
+func (i *Interpreter) visitID(n *ID) WType { return WString(n.String()) }

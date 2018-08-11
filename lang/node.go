@@ -6,9 +6,6 @@ import (
 	"strings"
 )
 
-/**
-* TODO: Refactor NewXxxNode to a factory pattern
- */
 var textFormat = "%s" // change to "%q" in tests for better error messages
 
 // Node is an element from the parse tree
@@ -28,260 +25,256 @@ type Pos int
 // the file was parsed
 type LinePos int
 
-// type NodeType int
-
-// binaryOpNode holds a binary operator between a left and right node
-// This struct is meant to be embedded within all other binary operation
-// structs
-// Logical Binary Operator: "||", "&&"
-type binaryOpNode struct {
+// binOpExpr holds a binary operator between a left and right node
+// This struct is meant to be embedded within all other binary op structs
+type binOpExpr struct {
 	token
 	scope Scope
 	left  Node
 	right Node
 }
 
-func (n binaryOpNode) Scope() Scope { return n.scope }
+func (n binOpExpr) Scope() Scope { return n.scope }
 
 // Arithmetic Binary Operators
 
-// AddNode holds a '+' operator between its 2 children
-type AddNode struct{ binaryOpNode }
+// AddExpr holds a '+' operator between its 2 children
+type AddExpr struct{ binOpExpr }
 
-// newAdd returns a pointer to a AddNode
-func newAdd(left Node, right Node, tkn token) *AddNode {
-	return &AddNode{binaryOpNode{left: left, right: right, token: tkn}}
+// newAdd returns a pointer to a AddExpr
+func newAdd(left Node, right Node, tkn token) *AddExpr {
+	return &AddExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *AddNode) Accept(nw NodeWalker) WType { return nw.visitAdd(n) }
+func (n *AddExpr) Accept(nw NodeWalker) WType { return nw.visitAdd(n) }
 
-func (n *AddNode) String() string { return "+" }
+func (n *AddExpr) String() string { return "+" }
 
-// SubtractNode holds a '-' operator between its 2 children
-type SubtractNode struct{ binaryOpNode }
+// SubtractExpr holds a '-' operator between its 2 children
+type SubtractExpr struct{ binOpExpr }
 
-// newSubtract returns a pointer to a SubtractNode
-func newSubtract(left Node, right Node, tkn token) *SubtractNode {
-	return &SubtractNode{binaryOpNode{left: left, right: right, token: tkn}}
+// newSubtract returns a pointer to a SubtractExpr
+func newSubtract(left Node, right Node, tkn token) *SubtractExpr {
+	return &SubtractExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *SubtractNode) Accept(nw NodeWalker) WType { return nw.visitSubtract(n) }
+func (n *SubtractExpr) Accept(nw NodeWalker) WType { return nw.visitSubtract(n) }
 
-func (n *SubtractNode) String() string { return "-" }
+func (n *SubtractExpr) String() string { return "-" }
 
-// MultNode holds a '*' operator between its 2 children
-type MultNode struct{ binaryOpNode }
+// MultExpr holds a '*' operator between its 2 children
+type MultExpr struct{ binOpExpr }
 
-// newMult returns a pointer to a MultNode
-func newMult(left Node, right Node, tkn token) *MultNode {
-	return &MultNode{binaryOpNode{left: left, right: right, token: tkn}}
+// newMult returns a pointer to a MultExpr
+func newMult(left Node, right Node, tkn token) *MultExpr {
+	return &MultExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *MultNode) Accept(nw NodeWalker) WType { return nw.visitMult(n) }
+func (n *MultExpr) Accept(nw NodeWalker) WType { return nw.visitMult(n) }
 
-func (n *MultNode) String() string { return "*" }
+func (n *MultExpr) String() string { return "*" }
 
-// DivNode holds a '/' operator between its 2 children
-type DivNode struct{ binaryOpNode }
+// DivExpr holds a '/' operator between its 2 children
+type DivExpr struct{ binOpExpr }
 
-// newDiv returns a pointer to a DivNode
-func newDiv(left Node, right Node, tkn token) *DivNode {
-	return &DivNode{binaryOpNode{left: left, right: right, token: tkn}}
+// newDiv returns a pointer to a DivExpr
+func newDiv(left Node, right Node, tkn token) *DivExpr {
+	return &DivExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *DivNode) Accept(nw NodeWalker) WType { return nw.visitDiv(n) }
+func (n *DivExpr) Accept(nw NodeWalker) WType { return nw.visitDiv(n) }
 
-func (n *DivNode) String() string { return "/" }
+func (n *DivExpr) String() string { return "/" }
 
-// ModNode holds a '%' operator between its 2 children
-type ModNode struct{ binaryOpNode }
+// ModExpr holds a '%' operator between its 2 children
+type ModExpr struct{ binOpExpr }
 
-// newMod returns a pointer to a ModNode
-func newMod(left Node, right Node, tkn token) *ModNode {
-	return &ModNode{binaryOpNode{left: left, right: right, token: tkn}}
+// newMod returns a pointer to a ModExpr
+func newMod(left Node, right Node, tkn token) *ModExpr {
+	return &ModExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *ModNode) Accept(nw NodeWalker) WType { return nw.visitMod(n) }
+func (n *ModExpr) Accept(nw NodeWalker) WType { return nw.visitMod(n) }
 
-func (n *ModNode) String() string { return "%" }
+func (n *ModExpr) String() string { return "%" }
 
 // Comparative Binary Operators
 
-// EqNode holds either the '!=' or '==' operator between its 2 children
-type EqNode struct {
-	binaryOpNode
+// EqExpr holds either the '!=' or '==' operator between its 2 children
+type EqExpr struct {
+	binOpExpr
 	IsNot bool
 }
 
-// newEq returns a pointer to a EqNode
-func newEq(left Node, right Node, isNot bool, tkn token) *EqNode {
-	return &EqNode{binaryOpNode: binaryOpNode{left: left, right: right, token: tkn}, IsNot: isNot}
+// newEq returns a pointer to a EqExpr
+func newEq(left Node, right Node, isNot bool, tkn token) *EqExpr {
+	return &EqExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}, IsNot: isNot}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *EqNode) Accept(nw NodeWalker) WType { return nw.visitEq(n) }
+func (n *EqExpr) Accept(nw NodeWalker) WType { return nw.visitEq(n) }
 
-func (n *EqNode) String() string {
+func (n *EqExpr) String() string {
 	if n.IsNot {
 		return "!="
 	}
 	return "=="
 }
 
-// SmNode holds either the '<' or '<=' operator between its 2 children
-type SmNode struct {
-	binaryOpNode
+// SmExpr holds either the '<' or '<=' operator between its 2 children
+type SmExpr struct {
+	binOpExpr
 	OrEq bool
 }
 
-// newSm returns a pointer to a SmNode
-func newSm(left Node, right Node, OrEq bool, tkn token) *SmNode {
-	return &SmNode{binaryOpNode: binaryOpNode{left: left, right: right, token: tkn}, OrEq: OrEq}
+// newSm returns a pointer to a SmExpr
+func newSm(left Node, right Node, OrEq bool, tkn token) *SmExpr {
+	return &SmExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}, OrEq: OrEq}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *SmNode) Accept(nw NodeWalker) WType { return nw.visitSm(n) }
+func (n *SmExpr) Accept(nw NodeWalker) WType { return nw.visitSm(n) }
 
-func (n *SmNode) String() string {
+func (n *SmExpr) String() string {
 	if n.OrEq {
 		return "<="
 	}
 	return "<"
 }
 
-// GrNode holds either the '<' or '<=' operator between its 2 children
-type GrNode struct {
-	binaryOpNode
+// GrExpr holds either the '<' or '<=' operator between its 2 children
+type GrExpr struct {
+	binOpExpr
 	OrEq bool
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *GrNode) Accept(nw NodeWalker) WType { return nw.visitGr(n) }
+func (n *GrExpr) Accept(nw NodeWalker) WType { return nw.visitGr(n) }
 
-// newGr returns a pointer to a GrNode
-func newGr(left Node, right Node, OrEq bool, tkn token) *GrNode {
-	return &GrNode{binaryOpNode: binaryOpNode{left: left, right: right, token: tkn}, OrEq: OrEq}
+// newGr returns a pointer to a GrExpr
+func newGr(left Node, right Node, OrEq bool, tkn token) *GrExpr {
+	return &GrExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}, OrEq: OrEq}
 }
 
-func (n *GrNode) String() string {
+func (n *GrExpr) String() string {
 	if n.OrEq {
 		return ">="
 	}
 	return ">"
 }
 
-// InNode holds either the '!in' or 'in' operator between its 2 children
-type InNode struct {
-	binaryOpNode
+// InExpr holds either the '!in' or 'in' operator between its 2 children
+type InExpr struct {
+	binOpExpr
 }
 
-// newIn returns a pointer to a InNode
-func newIn(left Node, right Node, tkn token) *InNode {
-	return &InNode{binaryOpNode: binaryOpNode{left: left, right: right, token: tkn}}
-}
-
-// Accept marshalls the AST node walker to the correct visit method
-func (n *InNode) Accept(nw NodeWalker) WType { return nw.visitIn(n) }
-
-func (n *InNode) String() string { return "in" }
-
-// AndNode holds the '&&' operator between its 2 children
-type AndNode struct{ binaryOpNode }
-
-// newAnd returns a pointer to a AndNode
-func newAnd(left Node, right Node, tkn token) *AndNode {
-	return &AndNode{binaryOpNode{left: left, right: right, token: tkn}}
+// newIn returns a pointer to a InExpr
+func newIn(left Node, right Node, tkn token) *InExpr {
+	return &InExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *AndNode) Accept(nw NodeWalker) WType { return nw.visitAnd(n) }
+func (n *InExpr) Accept(nw NodeWalker) WType { return nw.visitIn(n) }
 
-func (n *AndNode) String() string { return "&&" }
+func (n *InExpr) String() string { return "in" }
 
-// OrNode holds the '||' operator between its 2 children
-type OrNode struct{ binaryOpNode }
+// AndExpr holds the '&&' operator between its 2 children
+type AndExpr struct{ binOpExpr }
 
-// newOr returns a pointer to a OrNode
-func newOr(left Node, right Node, tkn token) *OrNode {
-	return &OrNode{binaryOpNode{left: left, right: right, token: tkn}}
+// newAnd returns a pointer to a AndExpr
+func newAnd(left Node, right Node, tkn token) *AndExpr {
+	return &AndExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *OrNode) Accept(nw NodeWalker) WType { return nw.visitOr(n) }
+func (n *AndExpr) Accept(nw NodeWalker) WType { return nw.visitAnd(n) }
 
-func (n *OrNode) String() string { return "||" }
+func (n *AndExpr) String() string { return "&&" }
+
+// OrExpr holds the '||' operator between its 2 children
+type OrExpr struct{ binOpExpr }
+
+// newOr returns a pointer to a OrExpr
+func newOr(left Node, right Node, tkn token) *OrExpr {
+	return &OrExpr{binOpExpr{left: left, right: right, token: tkn}}
+}
+
+// Accept marshalls the AST node walker to the correct visit method
+func (n *OrExpr) Accept(nw NodeWalker) WType { return nw.visitOr(n) }
+
+func (n *OrExpr) String() string { return "||" }
 
 // Unary Operators
 
-// unaryOpNode holds a unary operator as well as an operand node
-type unaryOpNode struct {
+// unOpExpr holds a unary operator as well as an operand node
+type unOpExpr struct {
 	token
 	scope   Scope
 	operand Node
 }
 
-func (n unaryOpNode) Scope() Scope {
+func (n unOpExpr) Scope() Scope {
 	return n.scope
 }
 
-// PlusNode holds a unary positive ('+') operator and its operand
-type PlusNode struct{ unaryOpNode }
+// PlusExpr holds a unary positive ('+') operator and its operand
+type PlusExpr struct{ unOpExpr }
 
-// newPlus returns a pointer to a PlusNode
-func newPlus(operand Node, tkn token) *PlusNode {
-	return &PlusNode{unaryOpNode{operand: operand, token: tkn}}
+// newPlus returns a pointer to a PlusExpr
+func newPlus(operand Node, tkn token) *PlusExpr {
+	return &PlusExpr{unOpExpr{operand: operand, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *PlusNode) Accept(nw NodeWalker) WType { return nw.visitPlus(n) }
+func (n *PlusExpr) Accept(nw NodeWalker) WType { return nw.visitPlus(n) }
 
-func (n *PlusNode) String() string { return "+" }
+func (n *PlusExpr) String() string { return "+" }
 
-// MinusNode holds a unary negative ('-') operator and its operand
-type MinusNode struct{ unaryOpNode }
+// MinusExpr holds a unary negative ('-') operator and its operand
+type MinusExpr struct{ unOpExpr }
 
-// newMinus returns a pointer to a MinusNode
-func newMinus(operand Node, tkn token) *MinusNode {
-	return &MinusNode{unaryOpNode{operand: operand, token: tkn}}
+// newMinus returns a pointer to a MinusExpr
+func newMinus(operand Node, tkn token) *MinusExpr {
+	return &MinusExpr{unOpExpr{operand: operand, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *MinusNode) Accept(nw NodeWalker) WType { return nw.visitMinus(n) }
+func (n *MinusExpr) Accept(nw NodeWalker) WType { return nw.visitMinus(n) }
 
-func (n *MinusNode) String() string { return "-" }
+func (n *MinusExpr) String() string { return "-" }
 
-// NotNode holds a unary logical not ('!') operator and its operand
-type NotNode struct{ unaryOpNode }
+// NotExpr holds a unary logical not ('!') operator and its operand
+type NotExpr struct{ unOpExpr }
 
-// newNot returns a pointer to a NotNode
-func newNot(operand Node, tkn token) *NotNode {
-	return &NotNode{unaryOpNode{operand: operand, token: tkn}}
+// newNot returns a pointer to a NotExpr
+func newNot(operand Node, tkn token) *NotExpr {
+	return &NotExpr{unOpExpr{operand: operand, token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *NotNode) Accept(nw NodeWalker) WType { return nw.visitNot(n) }
+func (n *NotExpr) Accept(nw NodeWalker) WType { return nw.visitNot(n) }
 
-func (n *NotNode) String() string { return "!" }
+func (n *NotExpr) String() string { return "!" }
 
 // Literals
 
-type litNode struct {
+type literal struct {
 	token
 	scope Scope
 }
 
-func (n litNode) Scope() Scope {
+func (n literal) Scope() Scope {
 	return n.scope
 }
 
-// NumberNode holds a numerical constant: signed integer or float
-type NumberNode struct {
-	litNode
+// Num holds a numerical constant: signed integer or float
+type Num struct {
+	literal
 	IsInt   bool    // number has an int value
 	IsFloat bool    // number has floating point value
 	Int64   int64   // signed integer value
@@ -289,9 +282,9 @@ type NumberNode struct {
 	Text    string  // Original text representation from input
 }
 
-// newNumber creates a new pointer to the NumberNode
-func newNumber(text string, tkn token) (*NumberNode, error) {
-	n := &NumberNode{litNode: litNode{token: tkn}, Text: text}
+// newNumber creates a new pointer to the Num
+func newNumber(text string, tkn token) (*Num, error) {
+	n := &Num{literal: literal{token: tkn}, Text: text}
 	i, err := strconv.ParseInt(text, 0, 64)
 	// If an int extraction succeeded, promote the float
 	if err == nil {
@@ -327,79 +320,93 @@ func newNumber(text string, tkn token) (*NumberNode, error) {
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *NumberNode) Accept(nw NodeWalker) WType { return nw.visitNum(n) }
+func (n *Num) Accept(nw NodeWalker) WType { return nw.visitNum(n) }
 
-func (n *NumberNode) String() string { return n.Text }
+func (n *Num) String() string { return n.Text }
 
-// StringNode holds a string literal: both raw and quoted
-type StringNode struct {
-	litNode
+// Str holds a string literal: both raw and quoted
+type Str struct {
+	literal
 	Value string
 }
 
-// newString creates a new pointer to the StringNode
-func newString(text string, tkn token) *StringNode {
-	return &StringNode{litNode: litNode{token: tkn}, Value: text}
+// newString creates a new pointer to the Str
+func newString(text string, tkn token) *Str {
+	return &Str{literal: literal{token: tkn}, Value: text}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *StringNode) Accept(nw NodeWalker) WType { return nw.visitStr(n) }
+func (n *Str) Accept(nw NodeWalker) WType { return nw.visitStr(n) }
 
-func (n *StringNode) String() string {
+func (n *Str) String() string {
 	return n.Value
 }
 
-// NullNode holds a null literal
-type NullNode struct {
-	litNode
+// Null holds a null literal
+type Null struct {
+	literal
 	Text string
 }
 
-// newNull creates a new pointer to the NullNode
-func newNull(text string, tkn token) *NullNode {
-	return &NullNode{litNode: litNode{token: tkn}, Text: text}
+// newNull creates a new pointer to the Null
+func newNull(text string, tkn token) *Null {
+	return &Null{literal: literal{token: tkn}, Text: text}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *NullNode) Accept(nw NodeWalker) WType { return nw.visitNull(n) }
+func (n *Null) Accept(nw NodeWalker) WType { return nw.visitNull(n) }
 
-func (n *NullNode) String() string { return n.Text }
+func (n *Null) String() string { return n.Text }
 
-// BoolNode holds a boolean literal
-type BoolNode struct {
-	litNode
+// Bool holds a boolean literal
+type Bool struct {
+	literal
 	Value bool
 	Text  string
 }
 
-// newBool creates a new pointer to the BoolNode
-func newBool(text string, tknTyp tokenType, tkn token) (*BoolNode, error) {
+// newBool creates a new pointer to the Bool
+func newBool(text string, tknTyp tokenType, tkn token) (*Bool, error) {
 	switch tknTyp {
 	case tokenTrue:
-		return &BoolNode{litNode: litNode{token: tkn}, Value: true, Text: text}, nil
+		return &Bool{literal: literal{token: tkn}, Value: true, Text: text}, nil
 	case tokenFalse:
-		return &BoolNode{litNode: litNode{token: tkn}, Value: false, Text: text}, nil
+		return &Bool{literal: literal{token: tkn}, Value: false, Text: text}, nil
 	default:
 		return nil, fmt.Errorf("illegal bool syntax: %q", text)
 	}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *BoolNode) Accept(nw NodeWalker) WType { return nw.visitBool(n) }
+func (n *Bool) Accept(nw NodeWalker) WType { return nw.visitBool(n) }
 
-func (n *BoolNode) String() string { return n.Text }
+func (n *Bool) String() string { return n.Text }
 
-// ListNode holds a list of Nodes
-type ListNode struct {
-	litNode
+// List holds a list of Nodes
+type List struct {
+	literal
 	elements []Node
 }
 
-func newList(elems []Node, tkn token) *ListNode {
-	return &ListNode{litNode: litNode{token: tkn}, elements: elems}
+func newList(elems []Node, tkn token) *List {
+	return &List{literal: literal{token: tkn}, elements: elems}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
-func (n *ListNode) Accept(nw NodeWalker) WType { return nw.visitList(n) }
+func (n *List) Accept(nw NodeWalker) WType { return nw.visitList(n) }
 
-func (n *ListNode) String() string { return fmt.Sprintf("%v", n.elements) }
+func (n *List) String() string { return fmt.Sprintf("%v", n.elements) }
+
+// ID node represents Identifier/Name nodes
+type ID struct {
+	token
+	value string
+	scope Scope
+}
+
+// Scope : self-explanatory
+func (n *ID) Scope() Scope   { return n.scope }
+func (n *ID) String() string { return n.value }
+
+// Accept marshalls the AST node walker to the correct visit method
+func (n *ID) Accept(nw NodeWalker) WType { return nw.visitID(n) }
