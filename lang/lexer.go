@@ -32,6 +32,8 @@ func (tok token) String() string {
 		return fmt.Sprintf("<err: %s>", tok.value)
 	case tok.typ == tokenSemicolon:
 		return ";"
+	case tok.typ == tokenName:
+		return fmt.Sprintf("<NAME:%q>", tok.value)
 	case tok.typ > tokenKeyword:
 		return fmt.Sprintf("<%s>", tok.value)
 	}
@@ -44,7 +46,7 @@ const (
 	tokenError tokenType = iota // error occurred; value is the text of error
 	tokenEOF
 	tokenDot         // Dot character '.'
-	tokenIdentifier  // alphanumeric identifier
+	tokenName        // alphanumeric identifier
 	tokenLeftRound   // left bracket '('
 	tokenRightRound  // right bracket ')'
 	tokenLeftCurly   // left curly bracket '{'
@@ -108,7 +110,7 @@ const (
 var tokenNames = map[tokenType]string{
 	tokenError:       "error",
 	tokenEOF:         "EOF",
-	tokenIdentifier:  "identifier",
+	tokenName:        "NAME",
 	tokenLeftRound:   "(",
 	tokenRightRound:  ")",
 	tokenLeftCurly:   "{",
@@ -402,8 +404,6 @@ func lexCode(l *lexer) stateFunc {
 	case isEndOfLine(r): // detects \r or \n
 		l.backup()
 		return lexNewline
-	case r == ';':
-		l.emit(tokenSemicolon)
 	case r == ':':
 		l.emit(tokenColon)
 	case r == ',':
@@ -458,37 +458,18 @@ func lexCode(l *lexer) stateFunc {
 		return lexIdentifier
 	case r == ';':
 		l.emit(tokenSemicolon)
-	case r == '(', r == '{', r == '[': // opening brackets
-		switch r {
-		case '(':
-			l.emit(tokenLeftRound)
-		case '{':
-			l.emit(tokenLeftCurly)
-		case '[':
-			l.emit(tokenLeftSquare)
-		}
+	case r == '(':
+		l.emit(tokenLeftRound)
+		l.bracketStack.push(r)
+	case r == '{':
+		l.emit(tokenLeftCurly)
+		l.bracketStack.push(r)
+	case r == '[':
+		l.emit(tokenLeftSquare)
 		l.bracketStack.push(r)
 	case r == ')', r == '}', r == ']':
-		if l.bracketStack.empty() {
-			return l.errorf("unexpected right bracket %#U", r)
-		} else if toCheck := l.bracketStack.pop(); toCheck != bracketMap[r] {
-			return l.errorf("unexpected right bracket %#U", r)
-		}
-		switch r {
-		case ')':
-			l.emit(tokenRightRound)
-		case '}':
-			// ASI Rule 2: To allow complex statements to occupy a single line
-			// a semicolon may be omitted before closing right curly bracket
-			if l.prevTokTyp != tokenSemicolon {
-				l.backup() // backup to not accidentally emit the right curly bracket
-				l.emit(tokenSemicolon)
-				l.next() // advance forward to contain the right curly bracket again
-			}
-			l.emit(tokenRightCurly)
-		case ']':
-			l.emit(tokenRightSquare)
-		}
+		l.backup()
+		return lexRightBracket
 	default:
 		return l.errorf("unrecognised character in code: %#U", r)
 	}
@@ -533,7 +514,7 @@ Loop:
 		}
 	}
 	switch l.prevTokTyp {
-	case tokenIdentifier, tokenRawString, tokenQuotedString, tokenFalse,
+	case tokenName, tokenRawString, tokenQuotedString, tokenFalse,
 		tokenTrue, tokenNumber, tokenBreak, tokenCont, tokenReturn,
 		tokenRightRound, tokenRightSquare, tokenRightCurly:
 		l.emit(tokenSemicolon)
@@ -665,10 +646,36 @@ Loop:
 			case keyMap[word] > tokenKeyword:
 				l.emit(keyMap[word])
 			default:
-				l.emit(tokenIdentifier)
+				l.emit(tokenName)
 			}
 			break Loop
 		}
+	}
+	return lexCode
+}
+
+// lexRightBracket scans for a right bracket (curly, round, square)
+// This function also runs ASI (Rule 2), a semicolon may be omitted before closing
+// the right curly bracket, this allows complex statements to occupy a single line
+func lexRightBracket(l *lexer) stateFunc {
+	r := l.next()
+	if l.bracketStack.empty() {
+		return l.errorf("unexpected right bracket %#U", r)
+	} else if toCheck := l.bracketStack.pop(); toCheck != bracketMap[r] {
+		return l.errorf("unexpected right bracket %#U", r)
+	}
+	switch r {
+	case ')':
+		l.emit(tokenRightRound)
+	case '}':
+		if l.prevTokTyp != tokenSemicolon {
+			l.backup() // backup to not accidentally emit the right curly bracket
+			l.emit(tokenSemicolon)
+			l.next() // advance forward to contain the right curly bracket again
+		}
+		l.emit(tokenRightCurly)
+	case ']':
+		l.emit(tokenRightSquare)
 	}
 	return lexCode
 }

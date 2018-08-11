@@ -9,12 +9,12 @@ func makeToken(typ tokenType, value string) token {
 	return token{typ: typ, value: value}
 }
 
-// makeIdent is a helper method that creates an identifier with the string value
-func makeIdent(value string) token {
-	return makeToken(tokenIdentifier, value)
+// makeName is a helper method that creates an identifier with the string value
+func makeName(value string) token {
+	return makeToken(tokenName, value)
 }
 
-// makeIdent is a helper method that creates an error with the string value
+// makeError is a helper method that creates an error with the string value
 func makeError(value string) token {
 	return makeToken(tokenError, value)
 }
@@ -107,7 +107,7 @@ var lexTests = []lexTestcase{
 	},
 	{"division parse",
 		"x = 1.2 /* 2 *// 2",
-		[]token{makeIdent("x"), tknAss, makeToken(tokenNumber, "1.2"),
+		[]token{makeName("x"), tknAss, makeToken(tokenNumber, "1.2"),
 			tknDiv, makeToken(tokenNumber, "2"), tknEOF,
 		},
 	},
@@ -133,49 +133,49 @@ var lexTests = []lexTestcase{
 	},
 	{"identifiers and dots",
 		"x.y.z+n.q.w()",
-		[]token{makeIdent("x"), tknDot, makeIdent("y"), tknDot, makeIdent("z"), tknPlus,
-			makeIdent("n"), tknDot, makeIdent("q"), tknDot, makeIdent("w"),
+		[]token{makeName("x"), tknDot, makeName("y"), tknDot, makeName("z"), tknPlus,
+			makeName("n"), tknDot, makeName("q"), tknDot, makeName("w"),
 			tknLR, tknRR, tknEOF,
 		},
 	},
 	// Error Test Cases
 	{"single | error",
 		"x | y",
-		[]token{makeIdent("x"), makeError(`expected token U+007C '|'`)},
+		[]token{makeName("x"), makeError(`expected token U+007C '|'`)},
 	},
 	{"single & error",
 		"x & y",
-		[]token{makeIdent("x"), makeError(`expected token U+0026 '&'`)},
+		[]token{makeName("x"), makeError(`expected token U+0026 '&'`)},
 	},
-	{"typo right paren )",
+	{"typo right bracket )",
 		"x + ) y",
-		[]token{makeIdent("x"), tknPlus, makeError(`unexpected right paren U+0029 ')'`)},
+		[]token{makeName("x"), tknPlus, makeError(`unexpected right bracket U+0029 ')'`)},
 	},
-	{"extra right paren )",
+	{"extra right bracket )",
 		"(x + 1)) * y",
-		[]token{tknLR, makeIdent("x"), tknPlus, makeToken(tokenNumber, "1"),
-			tknRR, makeError(`unexpected right paren U+0029 ')'`),
+		[]token{tknLR, makeName("x"), tknPlus, makeToken(tokenNumber, "1"),
+			tknRR, makeError(`unexpected right bracket U+0029 ')'`),
 		},
 	},
-	{"extra right brace paren }",
+	{"extra right brace bracket }",
 		"if x == 1 { return y }}",
-		[]token{tknIf, makeIdent("x"), tknEql, makeToken(tokenNumber, "1"),
-			tknLC, tknReturn, makeIdent("y"), tknRC,
-			makeError(`unexpected right paren U+007D '}'`),
+		[]token{tknIf, makeName("x"), tknEql, makeToken(tokenNumber, "1"),
+			tknLC, tknReturn, makeName("y"), tknSemi, tknRC,
+			makeError(`unexpected right bracket U+007D '}'`),
 		},
 	},
-	{"extra right square paren ]",
+	{"extra right square bracket ]",
 		"[x, 2, w]]",
-		[]token{tknLS, makeIdent("x"), tknComma, makeToken(tokenNumber, "2"),
-			tknComma, makeIdent("w"), tknRS, makeError(`unexpected right paren U+005D ']'`),
+		[]token{tknLS, makeName("x"), tknComma, makeToken(tokenNumber, "2"),
+			tknComma, makeName("w"), tknRS, makeError(`unexpected right bracket U+005D ']'`),
 		},
 	},
-	{"unclosed left paren",
+	{"unclosed left bracket",
 		"(x+y)*((1/1.324)%4",
-		[]token{tknLR, makeIdent("x"), tknPlus, makeIdent("y"), tknRR, tknMult,
+		[]token{tknLR, makeName("x"), tknPlus, makeName("y"), tknRR, tknMult,
 			tknLR, tknLR, makeToken(tokenNumber, "1"), tknDiv,
 			makeToken(tokenNumber, "1.324"), tknRR, tknMod, makeToken(tokenNumber, "4"),
-			makeError(`unclosed left paren: U+0028 '('`),
+			makeError(`unclosed left bracket: U+0028 '('`),
 		},
 	},
 }
@@ -213,7 +213,11 @@ func equal(tknLst1, tknLst2 []token, checkPos bool) bool {
 			return false
 		}
 		if tknLst1[k].value != tknLst2[k].value {
-			return false
+			// Check due to Automatic semicolon insertion, some semicolon tokens may
+			// contain values in the strings that correspond
+			if tknLst1[k].typ != tokenSemicolon || tknLst2[k].typ != tokenSemicolon {
+				return false
+			}
 		}
 		if checkPos && tknLst1[k].pos != tknLst2[k].pos {
 			return false
