@@ -1,6 +1,7 @@
 package lang
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,9 +13,9 @@ var textFormat = "%s" // change to "%q" in tests for better error messages
 type Node interface {
 	Scope() Scope // returns the scope of a Node
 	String() string
-	Position() Pos // byte position of start of the node, in full original input string
-	LinePosition() LinePos
 	Accept(NodeWalker) WType // Accepts and marshalls the Nodewalker to the correct visit function
+	Position() Pos           // byte position of start of the node, in full original input string
+	LinePosition() LinePos
 }
 
 // Pos represents the byte position in the original input text from which
@@ -25,16 +26,199 @@ type Pos int
 // the file was parsed
 type LinePos int
 
-// binOpExpr holds a binary operator between a left and right node
+// Stmt is a statement node
+type Stmt interface {
+	Node
+	Statement()
+}
+
+// ExprStmt is an expression statement, it can have a comma separated
+// series of expressions
+type ExprStmt struct {
+	token
+	scope Scope
+	exprs []Expr
+}
+
+func newExprStmt(expressions []Expr, tkn token) *ExprStmt {
+	return &ExprStmt{exprs: expressions, token: tkn}
+}
+
+// Scope returns the scope that the statement was in
+func (n *ExprStmt) Scope() Scope { return n.scope }
+
+func (n *ExprStmt) String() string {
+	var buffer bytes.Buffer
+	buffer.WriteString(n.exprs[0].String())
+	for _, expr := range n.exprs[1:] {
+		buffer.WriteString(",")
+		buffer.WriteString(expr.String())
+	}
+	return buffer.String()
+}
+
+// Accept marshalls the AST node walker to the correct visit method
+func (n *ExprStmt) Accept(nw NodeWalker) WType { return nw.visitExprStmt(n) }
+
+// Statement node
+func (n *ExprStmt) Statement() {}
+
+// AssignStmt is the assignment statement
+type AssignStmt struct {
+	token
+	scope Scope
+	left  []Expr
+	right []Expr
+}
+
+func newAssignStmt(left, right []Expr, tkn token) *AssignStmt {
+	return &AssignStmt{left: left, right: right, token: tkn}
+}
+
+// Scope returns the scope that the statement was in
+func (n *AssignStmt) Scope() Scope { return n.scope }
+
+func (n *AssignStmt) String() string { return "=" }
+
+// Accept marshalls the AST node walker to the correct visit method
+func (n *AssignStmt) Accept(nw NodeWalker) WType { return nw.visitAssignStmt(n) }
+
+// Statement node
+func (n *AssignStmt) Statement() {}
+
+// PlusAssignStmt is the assignment statement
+type PlusAssignStmt struct {
+	token
+	scope Scope
+	left  []Expr
+	right []Expr
+}
+
+func newPlusAssignStmt(left, right []Expr, tkn token) *PlusAssignStmt {
+	return &PlusAssignStmt{left: left, right: right, token: tkn}
+}
+
+// Scope returns the scope that the statement was in
+func (n *PlusAssignStmt) Scope() Scope { return n.scope }
+
+func (n *PlusAssignStmt) String() string { return "=" }
+
+// Accept marshalls the AST node walker to the correct visit method
+func (n *PlusAssignStmt) Accept(nw NodeWalker) WType { return nw.visitPlusAssignStmt(n) }
+
+// Statement node
+func (n *PlusAssignStmt) Statement() {}
+
+// MinusAssignStmt is the assignment statement
+type MinusAssignStmt struct {
+	token
+	scope Scope
+	left  []Expr
+	right []Expr
+}
+
+func newMinusAssignStmt(left, right []Expr, tkn token) *MinusAssignStmt {
+	return &MinusAssignStmt{left: left, right: right, token: tkn}
+}
+
+// Scope returns the scope that the statement was in
+func (n *MinusAssignStmt) Scope() Scope { return n.scope }
+
+func (n *MinusAssignStmt) String() string { return "=" }
+
+// Accept marshalls the AST node walker to the correct visit method
+func (n *MinusAssignStmt) Accept(nw NodeWalker) WType { return nw.visitMinusAssignStmt(n) }
+
+// Statement node
+func (n *MinusAssignStmt) Statement() {}
+
+// DivAssignStmt is the assignment statement
+type DivAssignStmt struct {
+	token
+	scope Scope
+	left  []Expr
+	right []Expr
+}
+
+func newDivAssignStmt(left, right []Expr, tkn token) *DivAssignStmt {
+	return &DivAssignStmt{left: left, right: right, token: tkn}
+}
+
+// Scope returns the scope that the statement was in
+func (n *DivAssignStmt) Scope() Scope { return n.scope }
+
+func (n *DivAssignStmt) String() string { return "=" }
+
+// Accept marshalls the AST node walker to the correct visit method
+func (n *DivAssignStmt) Accept(nw NodeWalker) WType { return nw.visitDivAssignStmt(n) }
+
+// Statement node
+func (n *DivAssignStmt) Statement() {}
+
+// MultAssignStmt is the assignment statement
+type MultAssignStmt struct {
+	token
+	scope Scope
+	left  []Expr
+	right []Expr
+}
+
+func newMultAssignStmt(left, right []Expr, tkn token) *MultAssignStmt {
+	return &MultAssignStmt{left: left, right: right, token: tkn}
+}
+
+// Scope returns the scope that the statement was in
+func (n *MultAssignStmt) Scope() Scope { return n.scope }
+
+func (n *MultAssignStmt) String() string { return "=" }
+
+// Accept marshalls the AST node walker to the correct visit method
+func (n *MultAssignStmt) Accept(nw NodeWalker) WType { return nw.visitMultAssignStmt(n) }
+
+// Statement node
+func (n *MultAssignStmt) Statement() {}
+
+// ModAssignStmt is the assignment statement
+type ModAssignStmt struct {
+	token
+	scope Scope
+	left  []Expr
+	right []Expr
+}
+
+func newModAssignStmt(left, right []Expr, tkn token) *ModAssignStmt {
+	return &ModAssignStmt{left: left, right: right, token: tkn}
+}
+
+// Scope returns the scope that the statement was in
+func (n *ModAssignStmt) Scope() Scope { return n.scope }
+
+func (n *ModAssignStmt) String() string { return "=" }
+
+// Accept marshalls the AST node walker to the correct visit method
+func (n *ModAssignStmt) Accept(nw NodeWalker) WType { return nw.visitModAssignStmt(n) }
+
+// Statement node
+func (n *ModAssignStmt) Statement() {}
+
+// Expr is an expression node
+type Expr interface {
+	Node
+	Expression()
+}
+
+// binOpExpr holds a binary operator between a left and right expressions
 // This struct is meant to be embedded within all other binary op structs
 type binOpExpr struct {
 	token
 	scope Scope
-	left  Node
-	right Node
+	left  Expr
+	right Expr
 }
 
 func (n binOpExpr) Scope() Scope { return n.scope }
+
+func (n binOpExpr) Expression() {}
 
 // Arithmetic Binary Operators
 
@@ -42,7 +226,7 @@ func (n binOpExpr) Scope() Scope { return n.scope }
 type AddExpr struct{ binOpExpr }
 
 // newAdd returns a pointer to a AddExpr
-func newAdd(left Node, right Node, tkn token) *AddExpr {
+func newAdd(left Expr, right Expr, tkn token) *AddExpr {
 	return &AddExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
@@ -55,7 +239,7 @@ func (n *AddExpr) String() string { return "+" }
 type SubtractExpr struct{ binOpExpr }
 
 // newSubtract returns a pointer to a SubtractExpr
-func newSubtract(left Node, right Node, tkn token) *SubtractExpr {
+func newSubtract(left Expr, right Expr, tkn token) *SubtractExpr {
 	return &SubtractExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
@@ -68,7 +252,7 @@ func (n *SubtractExpr) String() string { return "-" }
 type MultExpr struct{ binOpExpr }
 
 // newMult returns a pointer to a MultExpr
-func newMult(left Node, right Node, tkn token) *MultExpr {
+func newMult(left Expr, right Expr, tkn token) *MultExpr {
 	return &MultExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
@@ -81,7 +265,7 @@ func (n *MultExpr) String() string { return "*" }
 type DivExpr struct{ binOpExpr }
 
 // newDiv returns a pointer to a DivExpr
-func newDiv(left Node, right Node, tkn token) *DivExpr {
+func newDiv(left Expr, right Expr, tkn token) *DivExpr {
 	return &DivExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
@@ -94,7 +278,7 @@ func (n *DivExpr) String() string { return "/" }
 type ModExpr struct{ binOpExpr }
 
 // newMod returns a pointer to a ModExpr
-func newMod(left Node, right Node, tkn token) *ModExpr {
+func newMod(left Expr, right Expr, tkn token) *ModExpr {
 	return &ModExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
@@ -112,7 +296,7 @@ type EqExpr struct {
 }
 
 // newEq returns a pointer to a EqExpr
-func newEq(left Node, right Node, isNot bool, tkn token) *EqExpr {
+func newEq(left Expr, right Expr, isNot bool, tkn token) *EqExpr {
 	return &EqExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}, IsNot: isNot}
 }
 
@@ -133,7 +317,7 @@ type SmExpr struct {
 }
 
 // newSm returns a pointer to a SmExpr
-func newSm(left Node, right Node, OrEq bool, tkn token) *SmExpr {
+func newSm(left Expr, right Expr, OrEq bool, tkn token) *SmExpr {
 	return &SmExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}, OrEq: OrEq}
 }
 
@@ -157,7 +341,7 @@ type GrExpr struct {
 func (n *GrExpr) Accept(nw NodeWalker) WType { return nw.visitGr(n) }
 
 // newGr returns a pointer to a GrExpr
-func newGr(left Node, right Node, OrEq bool, tkn token) *GrExpr {
+func newGr(left Expr, right Expr, OrEq bool, tkn token) *GrExpr {
 	return &GrExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}, OrEq: OrEq}
 }
 
@@ -169,12 +353,10 @@ func (n *GrExpr) String() string {
 }
 
 // InExpr holds either the '!in' or 'in' operator between its 2 children
-type InExpr struct {
-	binOpExpr
-}
+type InExpr struct{ binOpExpr }
 
 // newIn returns a pointer to a InExpr
-func newIn(left Node, right Node, tkn token) *InExpr {
+func newIn(left Expr, right Expr, tkn token) *InExpr {
 	return &InExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}}
 }
 
@@ -187,7 +369,7 @@ func (n *InExpr) String() string { return "in" }
 type AndExpr struct{ binOpExpr }
 
 // newAnd returns a pointer to a AndExpr
-func newAnd(left Node, right Node, tkn token) *AndExpr {
+func newAnd(left Expr, right Expr, tkn token) *AndExpr {
 	return &AndExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
@@ -200,7 +382,7 @@ func (n *AndExpr) String() string { return "&&" }
 type OrExpr struct{ binOpExpr }
 
 // newOr returns a pointer to a OrExpr
-func newOr(left Node, right Node, tkn token) *OrExpr {
+func newOr(left Expr, right Expr, tkn token) *OrExpr {
 	return &OrExpr{binOpExpr{left: left, right: right, token: tkn}}
 }
 
@@ -215,18 +397,18 @@ func (n *OrExpr) String() string { return "||" }
 type unOpExpr struct {
 	token
 	scope   Scope
-	operand Node
+	operand Expr
 }
 
-func (n unOpExpr) Scope() Scope {
-	return n.scope
-}
+func (n unOpExpr) Scope() Scope { return n.scope }
+
+func (n unOpExpr) Expression() {}
 
 // PlusExpr holds a unary positive ('+') operator and its operand
 type PlusExpr struct{ unOpExpr }
 
 // newPlus returns a pointer to a PlusExpr
-func newPlus(operand Node, tkn token) *PlusExpr {
+func newPlus(operand Expr, tkn token) *PlusExpr {
 	return &PlusExpr{unOpExpr{operand: operand, token: tkn}}
 }
 
@@ -239,7 +421,7 @@ func (n *PlusExpr) String() string { return "+" }
 type MinusExpr struct{ unOpExpr }
 
 // newMinus returns a pointer to a MinusExpr
-func newMinus(operand Node, tkn token) *MinusExpr {
+func newMinus(operand Expr, tkn token) *MinusExpr {
 	return &MinusExpr{unOpExpr{operand: operand, token: tkn}}
 }
 
@@ -252,7 +434,7 @@ func (n *MinusExpr) String() string { return "-" }
 type NotExpr struct{ unOpExpr }
 
 // newNot returns a pointer to a NotExpr
-func newNot(operand Node, tkn token) *NotExpr {
+func newNot(operand Expr, tkn token) *NotExpr {
 	return &NotExpr{unOpExpr{operand: operand, token: tkn}}
 }
 
@@ -261,16 +443,16 @@ func (n *NotExpr) Accept(nw NodeWalker) WType { return nw.visitNot(n) }
 
 func (n *NotExpr) String() string { return "!" }
 
-// Literals
+/* Literals */
 
 type literal struct {
 	token
 	scope Scope
 }
 
-func (n literal) Scope() Scope {
-	return n.scope
-}
+func (n literal) Scope() Scope { return n.scope }
+
+func (n literal) Expression() {}
 
 // Num holds a numerical constant: signed integer or float
 type Num struct {
@@ -385,10 +567,10 @@ func (n *Bool) String() string { return n.Text }
 // List holds a list of Nodes
 type List struct {
 	literal
-	elements []Node
+	elements []Expr
 }
 
-func newList(elems []Node, tkn token) *List {
+func newList(elems []Expr, tkn token) *List {
 	return &List{literal: literal{token: tkn}, elements: elems}
 }
 
@@ -399,10 +581,11 @@ func (n *List) String() string { return fmt.Sprintf("%v", n.elements) }
 
 // ID node represents Identifier/Name nodes
 type ID struct {
-	token
+	literal
 	value string
-	scope Scope
 }
+
+func newID(value string, tkn token) *ID { return &ID{literal{token: tkn}, value} }
 
 // Scope : self-explanatory
 func (n *ID) Scope() Scope   { return n.scope }

@@ -3,6 +3,15 @@ package lang
 // NodeWalker is the interface to implement for all walkers/visitors to the AST
 type NodeWalker interface {
 
+	// Statements
+	visitExprStmt(*ExprStmt) WType
+	visitAssignStmt(*AssignStmt) WType
+	visitPlusAssignStmt(*PlusAssignStmt) WType
+	visitMinusAssignStmt(*MinusAssignStmt) WType
+	visitDivAssignStmt(*DivAssignStmt) WType
+	visitMultAssignStmt(*MultAssignStmt) WType
+	visitModAssignStmt(*ModAssignStmt) WType
+
 	// Expressions
 	// Binary Expressions
 	visitAdd(*AddExpr) WType

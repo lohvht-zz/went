@@ -147,7 +147,8 @@ func (p *Parser) recover(errp *error) {
 
 // initParser initialises the parser, using the lexer
 func initParser(tokeniser *lexer) *Parser {
-	p := &Parser{Name: tokeniser.name, Root: nil, tokeniser: tokeniser, input: tokeniser.input}
+	p := &Parser{Name: tokeniser.name, Root: nil, tokeniser: tokeniser,
+		input: tokeniser.input}
 	return p
 }
 
@@ -172,16 +173,56 @@ func (p *Parser) parse() {
 
 // Grammar rules
 
-// func (p *Parser) stmt() Node {
-// 	for tknTyp := p.peek().typ {
+// func (p *Parser) input() Node {
+// 	for p.peek().typ != tokenEOF {
 
 // 	}
 // }
 
-func (p *Parser) expr() Node { return p.orEval() }
+// func (p *Parser) stmt() Node {
+// 	for
+// }
+
+// // exprStmt: exprList (augAssign exprList | ('=' exprList)*);
+// // augAssign: "+=" | "-=" | "/=" | "*=" | "%=";
+// func (p *Parser) exprStmt() Stmt {
+// 	// get the first token, this used to give the line position and position
+// 	// of the start of the statement
+// 	firstTkn := p.peek()
+// 	exprs := p.exprList()
+// 	switch tkntyp := p.peek().typ; tkntyp {
+// 	case tokenPlusAssign, tokenMinusAssign, tokenDivAssign, tokenMultAssign,
+// 		tokenModAssign, tokenAssign:
+// 		return p.assignStmt(exprs, tkntyp)
+// 	default:
+// 		// // TODO: Do not accept if its not an assignment statement and it has more
+// 		// // than 1 expression to evaluate
+// 		// if len(exprs) > 1 {
+// 		// 	err := fmt.Errorf("cannot have more than 1 expression")
+// 		// }
+// 		return newExprStmt(exprs, firstTkn)
+// 	}
+// }
+
+// func (p *Parser) assignStmt(lhs []Expr, typ tokenType) Stmt {
+// 	// Possible errors:
+// 	// mismatched LHS/RHS number of values
+// 	// LHS is not addressable (i.e. not a NAME/SLICE)
+// 	for _, lhExpr := range lhs {
+// 		switch expr := lhExpr.(type) {
+// 		case ID:
+// 		default:
+// 			// Error, not an addressable
+// 			p.errorf()
+// 		}
+// 	}
+
+// 	rhs := p.exprList()
+
+// }
 
 // orEval: andEval ("||" orEval)*;
-func (p *Parser) orEval() Node {
+func (p *Parser) orEval() Expr {
 	node := p.andEval()
 	for p.peek().typ == tokenOr {
 		tkn := p.next()
@@ -191,7 +232,7 @@ func (p *Parser) orEval() Node {
 }
 
 // andEval: notEval ("&&" notEval)*;
-func (p *Parser) andEval() Node {
+func (p *Parser) andEval() Expr {
 	node := p.notEval()
 	for p.peek().typ == tokenAnd {
 		tkn := p.next()
@@ -201,7 +242,7 @@ func (p *Parser) andEval() Node {
 }
 
 // notEval: "!" notEval | comparison;
-func (p *Parser) notEval() Node {
+func (p *Parser) notEval() Expr {
 	switch p.peek().typ {
 	case tokenLogicalNot:
 		tkn := p.next()
@@ -213,7 +254,7 @@ func (p *Parser) notEval() Node {
 
 // comparison: smExpr (compOp smExpr)*;
 // compOp: compOp: "==" | "!=" | "<" | ">" | "<=" | ">=" | ["!"] "in";
-func (p *Parser) comparison() Node {
+func (p *Parser) comparison() Expr {
 	node := p.smExpr()
 Loop:
 	for {
@@ -238,7 +279,7 @@ Loop:
 }
 
 // smExpr: term (("+" | "-") term)*;
-func (p *Parser) smExpr() Node {
+func (p *Parser) smExpr() Expr {
 	node := p.term()
 Loop:
 	for {
@@ -257,7 +298,7 @@ Loop:
 }
 
 // term: factor (("*" | "/" | "%") factor)*;
-func (p *Parser) term() Node {
+func (p *Parser) term() Expr {
 	node := p.factor()
 Loop:
 	for {
@@ -279,7 +320,7 @@ Loop:
 }
 
 // factor: ("+" | "-") factor | atom;
-func (p *Parser) factor() Node {
+func (p *Parser) factor() Expr {
 	switch p.peek().typ {
 	case tokenPlus:
 		tkn := p.next()
@@ -292,17 +333,33 @@ func (p *Parser) factor() Node {
 	}
 }
 
+// TODO: Implement me!
+func (p *Parser) atomExpr() Expr {
+	n := p.atom()
+	switch p.peek().typ {
+	case tokenDot: // map reference
+		return nil
+	case tokenLeftRound: // function call
+		return nil
+	case tokenLeftSquare: // slice / index reference
+		return nil
+	default:
+		return n
+	}
+}
+
 // atom: "[" [exprList] "]" | "{" mapList "}" | "(" expr ")" | ID | NUM | STR |
 // RAWSTR | "null" | "false" | "true";
-// exprList: orEval ("," orEval)* [","];
 // mapList: keyval ("," keyval)* [","];
 // keyval: (ID | STR) ":" expr;
-func (p *Parser) atom() Node {
-	tkn := p.expectRange("atom type check", tokenIdentifier, tokenNumber,
+func (p *Parser) atom() Expr {
+	tkn := p.expectRange("atom type check", tokenName, tokenNumber,
 		tokenRawString, tokenQuotedString, tokenNull, tokenFalse, tokenTrue,
 		tokenLeftRound, tokenLeftSquare,
 	)
 	switch tkn.typ {
+	case tokenName:
+		return newID(tkn.value, tkn)
 	case tokenNumber:
 		n, err := newNumber(tkn.value, tkn)
 		if err != nil {
@@ -324,14 +381,7 @@ func (p *Parser) atom() Node {
 		p.expect("closing brackets, expected ')'", tokenRightRound)
 		return n
 	case tokenLeftSquare:
-		elements := []Node{p.orEval()}
-		for p.peek().typ == tokenComma {
-			p.next() // consume the comma token
-			// if the following token isn't ']' handles dangling commas as well
-			if p.peek().typ != tokenRightSquare {
-				elements = append(elements, p.orEval())
-			}
-		}
+		elements := p.exprList()
 		p.expect("closing square brackets, expected ']'", tokenRightSquare)
 		return newList(elements, tkn)
 	// case tokenLeftCurly:
@@ -340,4 +390,17 @@ func (p *Parser) atom() Node {
 		p.unexpected("atom", tkn)
 		return nil
 	}
+}
+
+// exprList: orEval ("," orEval)* [","];
+func (p *Parser) exprList() []Expr {
+	elements := []Expr{p.orEval()}
+	for p.peek().typ == tokenComma {
+		p.next() // consume the comma token
+		// if the following token isn't ']' handles dangling commas as well
+		if p.peek().typ != tokenRightSquare {
+			elements = append(elements, p.orEval())
+		}
+	}
+	return elements
 }

@@ -37,9 +37,9 @@ ifStmt: "if" expr block ("elif" expr block)* ["else" block];
 whileStmt: "while" expr block ["default" block];
 forStmt: "for" exprList "in" expr block ["default" block];
 
-funcDef: "func" ID parameters ":" block;
+funcDef: "func" NAME parameters ":" block;
 parameters: "(" [argList] ")";
-argList: ID (',' ID)*;
+argList: NAME (',' NAME)*;
 
 block: "{" stmt+ "}";
 ```
@@ -61,19 +61,19 @@ multOp: "*" | "/" | "%";
 unaryOp: "+" | "-";
 
 atomExpr: atom trailer*; // TODO: To be implemented
-trailer: "(" [argList] ")" | "[" slice "]" | "." ID; // TODO: To be implemented
+trailer: "(" [argList] ")" | "[" slice "]" | "." NAME; // TODO: To be implemented
 slice: orEval | [orEval] ":" [orEval] [":" [orEval]]; // TODO: To be implemented
 argList: arg ("," arg)* [","]; // TODO: To be implemented
-arg: orEval | ID "=" orEval; // TODO: To be implemented
+arg: orEval | NAME "=" orEval; // TODO: To be implemented
 
 <!-- a[1], a[1:2], a[:2], a[1:] -->
 
 // TODO: Map To be implemented
 atom: "[" [exprList] "]" | "{" mapList "}" | "(" orEval ")" |
-  ID | NUM | STR | RAWSTR | "null" | "false" | "true";
+  NAME | NUM | STR | RAWSTR | "null" | "false" | "true";
 
 // TODO: To be implemented
 exprList: orEval ("," orEval)* [","];
 mapList: keyval ("," keyval)* [","];
-keyval: ID ":" orEval;
+keyval: NAME ":" orEval;
 ```

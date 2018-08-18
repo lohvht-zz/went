@@ -72,6 +72,27 @@ func (i *Interpreter) interpret() {
 	fmt.Printf("result is: %v of type %T\n", res, res)
 }
 
+// TODO: Implement me!
+func (i *Interpreter) visitExprStmt(node *ExprStmt) WType { return nil }
+
+// TODO: Implement me!
+func (i *Interpreter) visitAssignStmt(node *AssignStmt) WType { return nil }
+
+// TODO: Implement me!
+func (i *Interpreter) visitPlusAssignStmt(node *PlusAssignStmt) WType { return nil }
+
+// TODO: Implement me!
+func (i *Interpreter) visitMinusAssignStmt(node *MinusAssignStmt) WType { return nil }
+
+// TODO: Implement me!
+func (i *Interpreter) visitDivAssignStmt(node *DivAssignStmt) WType { return nil }
+
+// TODO: Implement me!
+func (i *Interpreter) visitMultAssignStmt(node *MultAssignStmt) WType { return nil }
+
+// TODO: Implement me!
+func (i *Interpreter) visitModAssignStmt(node *ModAssignStmt) WType { return nil }
+
 // NOTE: Should we allow functional overloading for arithmetic expressions?
 
 // additiveOp handles visit method for "additive" operators such as
