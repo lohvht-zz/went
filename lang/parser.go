@@ -182,7 +182,7 @@ func (p *Parser) orEval() Expr {
 	node := p.andEval()
 	for p.peek().Type == token.LOGICALOR {
 		tkn := p.next()
-		node = newOr(node, p.andEval(), tkn)
+		node = newBinOp(node, p.andEval(), tkn)
 	}
 	return node
 }
@@ -290,18 +290,25 @@ func (p *Parser) factor() Expr {
 }
 
 // TODO: Implement me!
+// atomExpr: atom trailer*;
+// trailer: "(" [argList] ")" | "[" slice "]" | "." NAME;
+// slice: orEval | [orEval] ":" [orEval] [":" [orEval]];
+// argList: arg ("," arg)* [","];
+// arg: orEval | NAME "=" orEval;
 func (p *Parser) atomExpr() Expr {
 	n := p.atom()
-	switch p.peek().Type {
-	case token.DOT: // map reference
-		return nil
-	case token.LROUND: // function call
-		return nil
-	case token.LSQUARE: // slice / index reference
-		return nil
-	default:
-		return n
+TrailerLoop:
+	for {
+		switch p.peek().Type {
+		case token.DOT:
+		case token.LROUND:
+		case token.LSQUARE:
+
+		default:
+			break TrailerLoop
+		}
 	}
+	return n
 }
 
 // atom: "[" [exprList] "]" | "{" mapList "}" | "(" expr ")" | ID | NUM | STR |
@@ -311,8 +318,7 @@ func (p *Parser) atomExpr() Expr {
 func (p *Parser) atom() Expr {
 	tkn := p.expectRange("atom type check", token.NAME, token.NUM,
 		token.RAWSTR, token.STR, token.NULL, token.FALSE, token.TRUE,
-		token.LROUND, token.LSQUARE,
-	)
+		token.LROUND, token.LSQUARE)
 	switch tkn.Type {
 	case token.NAME:
 		return newID(tkn.Value, tkn)

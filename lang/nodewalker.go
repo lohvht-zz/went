@@ -13,22 +13,29 @@ type NodeWalker interface {
 	visitModAssignStmt(*ModAssignStmt) WType
 
 	// Expressions
+
 	// Binary Expressions
-	visitAdd(*AddExpr) WType
-	visitSubtract(*SubtractExpr) WType
-	visitMult(*MultExpr) WType
-	visitDiv(*DivExpr) WType
-	visitMod(*ModExpr) WType
-	visitEq(*EqExpr) WType
-	visitSm(*SmExpr) WType
-	visitGr(*GrExpr) WType
-	visitIn(*InExpr) WType
-	visitAnd(*AndExpr) WType
-	visitOr(*OrExpr) WType
+
+	visitBinExpr(*BinExpr) WType
+	// visitAdd(*AddExpr) WType
+	// visitSubtract(*SubtractExpr) WType
+	// visitMult(*MultExpr) WType
+	// visitDiv(*DivExpr) WType
+	// visitMod(*ModExpr) WType
+	// visitEq(*EqExpr) WType
+	// visitSm(*SmExpr) WType
+	// visitGr(*GrExpr) WType
+	// visitIn(*InExpr) WType
+	// visitAnd(*AndExpr) WType
+	// visitOr(*OrExpr) WType
+
 	// Unary Expressions
-	visitPlus(*PlusExpr) WType
-	visitMinus(*MinusExpr) WType
-	visitNot(*NotExpr) WType
+
+	visitUnExpr(*UnExpr) WType
+	// visitPlus(*PlusExpr) WType
+	// visitMinus(*MinusExpr) WType
+	// visitNot(*NotExpr) WType
+
 	// visit literals
 	visitNum(*Num) WType
 	visitStr(*Str) WType

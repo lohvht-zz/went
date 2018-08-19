@@ -60,11 +60,11 @@ addOp: "+" | "-";
 multOp: "*" | "/" | "%";
 unaryOp: "+" | "-";
 
-atomExpr: atom trailer*; // TODO: To be implemented
-trailer: "(" [argList] ")" | "[" slice "]" | "." NAME; // TODO: To be implemented
-slice: orEval | [orEval] ":" [orEval] [":" [orEval]]; // TODO: To be implemented
-argList: arg ("," arg)* [","]; // TODO: To be implemented
-arg: orEval | NAME "=" orEval; // TODO: To be implemented
+atomExpr: atom trailer*;
+trailer: "(" [argList] ")" | "[" slice "]" | "." NAME;
+slice: orEval | [orEval] ":" [orEval] [":" [orEval]];
+argList: arg ("," arg)* [","];
+arg: orEval | NAME "=" orEval;
 
 <!-- a[1], a[1:2], a[:2], a[1:] -->
 

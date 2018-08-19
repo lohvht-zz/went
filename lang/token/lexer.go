@@ -36,15 +36,17 @@ func (l *Lexer) Drain() {
 // Lexer scans the entire input string and tokenises it, storing the tokens in
 // a channel of Tokens
 type Lexer struct {
-	Name         string     // name of the input; used only for error reporting
-	Input        string     // string being scanned
-	pos          Pos        // current position
-	start        Pos        // start position of this Token
-	width        Pos        // width of the last rune read from input
-	tokens       chan Token // channel of the scanned items
-	prevTokTyp   Type       // previous Token type used for automatic semicolon insertion
-	bracketStack runeStack  // a stack of runes used to keep track of all '(', '[' and '{'
-	line         LinePos    // 1 + number of newlines seen
+	Name   string     // name of the input; used only for error reporting
+	Input  string     // string being scanned
+	tokens chan Token // channel of the scanned items
+
+	// Internal lexer state
+	pos          Pos       // current position
+	start        Pos       // start position of this Token
+	width        Pos       // width of the last rune read from input
+	prevTokTyp   Type      // previous Token type used for automatic semicolon insertion
+	bracketStack runeStack // a stack of runes used to keep track of all '(', '[' and '{'
+	line         LinePos   // 1 + number of newlines seen
 }
 
 const eof = -1
