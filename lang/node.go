@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/lohvht/went/lang/token"
 )
 
 var textFormat = "%s" // change to "%q" in tests for better error messages
@@ -14,17 +16,9 @@ type Node interface {
 	Scope() Scope // returns the scope of a Node
 	String() string
 	Accept(NodeWalker) WType // Accepts and marshalls the Nodewalker to the correct visit function
-	Position() Pos           // byte position of start of the node, in full original input string
-	LinePosition() LinePos
+	Position() token.Pos     // byte position of start of the node, in full original input string
+	LinePosition() token.LinePos
 }
-
-// Pos represents the byte position in the original input text from which
-// this file was parsed
-type Pos int
-
-// LinePos represents the line position of the original input text from which
-// the file was parsed
-type LinePos int
 
 // Stmt is a statement node
 type Stmt interface {
@@ -35,13 +29,13 @@ type Stmt interface {
 // ExprStmt is an expression statement, it can have a comma separated
 // series of expressions
 type ExprStmt struct {
-	token
+	token.Token
 	scope Scope
 	exprs []Expr
 }
 
-func newExprStmt(expressions []Expr, tkn token) *ExprStmt {
-	return &ExprStmt{exprs: expressions, token: tkn}
+func newExprStmt(expressions []Expr, tkn token.Token) *ExprStmt {
+	return &ExprStmt{exprs: expressions, Token: tkn}
 }
 
 // Scope returns the scope that the statement was in
@@ -65,14 +59,14 @@ func (n *ExprStmt) Statement() {}
 
 // AssignStmt is the assignment statement
 type AssignStmt struct {
-	token
+	token.Token
 	scope Scope
 	left  []Expr
 	right []Expr
 }
 
-func newAssignStmt(left, right []Expr, tkn token) *AssignStmt {
-	return &AssignStmt{left: left, right: right, token: tkn}
+func newAssignStmt(left, right []Expr, tkn token.Token) *AssignStmt {
+	return &AssignStmt{left: left, right: right, Token: tkn}
 }
 
 // Scope returns the scope that the statement was in
@@ -88,14 +82,14 @@ func (n *AssignStmt) Statement() {}
 
 // PlusAssignStmt is the assignment statement
 type PlusAssignStmt struct {
-	token
+	token.Token
 	scope Scope
 	left  []Expr
 	right []Expr
 }
 
-func newPlusAssignStmt(left, right []Expr, tkn token) *PlusAssignStmt {
-	return &PlusAssignStmt{left: left, right: right, token: tkn}
+func newPlusAssignStmt(left, right []Expr, tkn token.Token) *PlusAssignStmt {
+	return &PlusAssignStmt{left: left, right: right, Token: tkn}
 }
 
 // Scope returns the scope that the statement was in
@@ -111,14 +105,14 @@ func (n *PlusAssignStmt) Statement() {}
 
 // MinusAssignStmt is the assignment statement
 type MinusAssignStmt struct {
-	token
+	token.Token
 	scope Scope
 	left  []Expr
 	right []Expr
 }
 
-func newMinusAssignStmt(left, right []Expr, tkn token) *MinusAssignStmt {
-	return &MinusAssignStmt{left: left, right: right, token: tkn}
+func newMinusAssignStmt(left, right []Expr, tkn token.Token) *MinusAssignStmt {
+	return &MinusAssignStmt{left: left, right: right, Token: tkn}
 }
 
 // Scope returns the scope that the statement was in
@@ -134,14 +128,14 @@ func (n *MinusAssignStmt) Statement() {}
 
 // DivAssignStmt is the assignment statement
 type DivAssignStmt struct {
-	token
+	token.Token
 	scope Scope
 	left  []Expr
 	right []Expr
 }
 
-func newDivAssignStmt(left, right []Expr, tkn token) *DivAssignStmt {
-	return &DivAssignStmt{left: left, right: right, token: tkn}
+func newDivAssignStmt(left, right []Expr, tkn token.Token) *DivAssignStmt {
+	return &DivAssignStmt{left: left, right: right, Token: tkn}
 }
 
 // Scope returns the scope that the statement was in
@@ -157,14 +151,14 @@ func (n *DivAssignStmt) Statement() {}
 
 // MultAssignStmt is the assignment statement
 type MultAssignStmt struct {
-	token
+	token.Token
 	scope Scope
 	left  []Expr
 	right []Expr
 }
 
-func newMultAssignStmt(left, right []Expr, tkn token) *MultAssignStmt {
-	return &MultAssignStmt{left: left, right: right, token: tkn}
+func newMultAssignStmt(left, right []Expr, tkn token.Token) *MultAssignStmt {
+	return &MultAssignStmt{left: left, right: right, Token: tkn}
 }
 
 // Scope returns the scope that the statement was in
@@ -180,14 +174,14 @@ func (n *MultAssignStmt) Statement() {}
 
 // ModAssignStmt is the assignment statement
 type ModAssignStmt struct {
-	token
+	token.Token
 	scope Scope
 	left  []Expr
 	right []Expr
 }
 
-func newModAssignStmt(left, right []Expr, tkn token) *ModAssignStmt {
-	return &ModAssignStmt{left: left, right: right, token: tkn}
+func newModAssignStmt(left, right []Expr, tkn token.Token) *ModAssignStmt {
+	return &ModAssignStmt{left: left, right: right, Token: tkn}
 }
 
 // Scope returns the scope that the statement was in
@@ -210,7 +204,7 @@ type Expr interface {
 // binOpExpr holds a binary operator between a left and right expressions
 // This struct is meant to be embedded within all other binary op structs
 type binOpExpr struct {
-	token
+	token.Token
 	scope Scope
 	left  Expr
 	right Expr
@@ -226,8 +220,8 @@ func (n binOpExpr) Expression() {}
 type AddExpr struct{ binOpExpr }
 
 // newAdd returns a pointer to a AddExpr
-func newAdd(left Expr, right Expr, tkn token) *AddExpr {
-	return &AddExpr{binOpExpr{left: left, right: right, token: tkn}}
+func newAdd(left Expr, right Expr, tkn token.Token) *AddExpr {
+	return &AddExpr{binOpExpr{left: left, right: right, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -239,8 +233,8 @@ func (n *AddExpr) String() string { return "+" }
 type SubtractExpr struct{ binOpExpr }
 
 // newSubtract returns a pointer to a SubtractExpr
-func newSubtract(left Expr, right Expr, tkn token) *SubtractExpr {
-	return &SubtractExpr{binOpExpr{left: left, right: right, token: tkn}}
+func newSubtract(left Expr, right Expr, tkn token.Token) *SubtractExpr {
+	return &SubtractExpr{binOpExpr{left: left, right: right, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -252,8 +246,8 @@ func (n *SubtractExpr) String() string { return "-" }
 type MultExpr struct{ binOpExpr }
 
 // newMult returns a pointer to a MultExpr
-func newMult(left Expr, right Expr, tkn token) *MultExpr {
-	return &MultExpr{binOpExpr{left: left, right: right, token: tkn}}
+func newMult(left Expr, right Expr, tkn token.Token) *MultExpr {
+	return &MultExpr{binOpExpr{left: left, right: right, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -265,8 +259,8 @@ func (n *MultExpr) String() string { return "*" }
 type DivExpr struct{ binOpExpr }
 
 // newDiv returns a pointer to a DivExpr
-func newDiv(left Expr, right Expr, tkn token) *DivExpr {
-	return &DivExpr{binOpExpr{left: left, right: right, token: tkn}}
+func newDiv(left Expr, right Expr, tkn token.Token) *DivExpr {
+	return &DivExpr{binOpExpr{left: left, right: right, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -278,8 +272,8 @@ func (n *DivExpr) String() string { return "/" }
 type ModExpr struct{ binOpExpr }
 
 // newMod returns a pointer to a ModExpr
-func newMod(left Expr, right Expr, tkn token) *ModExpr {
-	return &ModExpr{binOpExpr{left: left, right: right, token: tkn}}
+func newMod(left Expr, right Expr, tkn token.Token) *ModExpr {
+	return &ModExpr{binOpExpr{left: left, right: right, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -296,8 +290,8 @@ type EqExpr struct {
 }
 
 // newEq returns a pointer to a EqExpr
-func newEq(left Expr, right Expr, isNot bool, tkn token) *EqExpr {
-	return &EqExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}, IsNot: isNot}
+func newEq(left Expr, right Expr, isNot bool, tkn token.Token) *EqExpr {
+	return &EqExpr{binOpExpr: binOpExpr{left: left, right: right, Token: tkn}, IsNot: isNot}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -317,8 +311,8 @@ type SmExpr struct {
 }
 
 // newSm returns a pointer to a SmExpr
-func newSm(left Expr, right Expr, OrEq bool, tkn token) *SmExpr {
-	return &SmExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}, OrEq: OrEq}
+func newSm(left Expr, right Expr, OrEq bool, tkn token.Token) *SmExpr {
+	return &SmExpr{binOpExpr: binOpExpr{left: left, right: right, Token: tkn}, OrEq: OrEq}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -341,8 +335,8 @@ type GrExpr struct {
 func (n *GrExpr) Accept(nw NodeWalker) WType { return nw.visitGr(n) }
 
 // newGr returns a pointer to a GrExpr
-func newGr(left Expr, right Expr, OrEq bool, tkn token) *GrExpr {
-	return &GrExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}, OrEq: OrEq}
+func newGr(left Expr, right Expr, OrEq bool, tkn token.Token) *GrExpr {
+	return &GrExpr{binOpExpr: binOpExpr{left: left, right: right, Token: tkn}, OrEq: OrEq}
 }
 
 func (n *GrExpr) String() string {
@@ -356,8 +350,8 @@ func (n *GrExpr) String() string {
 type InExpr struct{ binOpExpr }
 
 // newIn returns a pointer to a InExpr
-func newIn(left Expr, right Expr, tkn token) *InExpr {
-	return &InExpr{binOpExpr: binOpExpr{left: left, right: right, token: tkn}}
+func newIn(left Expr, right Expr, tkn token.Token) *InExpr {
+	return &InExpr{binOpExpr: binOpExpr{left: left, right: right, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -369,8 +363,8 @@ func (n *InExpr) String() string { return "in" }
 type AndExpr struct{ binOpExpr }
 
 // newAnd returns a pointer to a AndExpr
-func newAnd(left Expr, right Expr, tkn token) *AndExpr {
-	return &AndExpr{binOpExpr{left: left, right: right, token: tkn}}
+func newAnd(left Expr, right Expr, tkn token.Token) *AndExpr {
+	return &AndExpr{binOpExpr{left: left, right: right, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -382,8 +376,8 @@ func (n *AndExpr) String() string { return "&&" }
 type OrExpr struct{ binOpExpr }
 
 // newOr returns a pointer to a OrExpr
-func newOr(left Expr, right Expr, tkn token) *OrExpr {
-	return &OrExpr{binOpExpr{left: left, right: right, token: tkn}}
+func newOr(left Expr, right Expr, tkn token.Token) *OrExpr {
+	return &OrExpr{binOpExpr{left: left, right: right, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -395,7 +389,7 @@ func (n *OrExpr) String() string { return "||" }
 
 // unOpExpr holds a unary operator as well as an operand node
 type unOpExpr struct {
-	token
+	token.Token
 	scope   Scope
 	operand Expr
 }
@@ -408,8 +402,8 @@ func (n unOpExpr) Expression() {}
 type PlusExpr struct{ unOpExpr }
 
 // newPlus returns a pointer to a PlusExpr
-func newPlus(operand Expr, tkn token) *PlusExpr {
-	return &PlusExpr{unOpExpr{operand: operand, token: tkn}}
+func newPlus(operand Expr, tkn token.Token) *PlusExpr {
+	return &PlusExpr{unOpExpr{operand: operand, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -421,8 +415,8 @@ func (n *PlusExpr) String() string { return "+" }
 type MinusExpr struct{ unOpExpr }
 
 // newMinus returns a pointer to a MinusExpr
-func newMinus(operand Expr, tkn token) *MinusExpr {
-	return &MinusExpr{unOpExpr{operand: operand, token: tkn}}
+func newMinus(operand Expr, tkn token.Token) *MinusExpr {
+	return &MinusExpr{unOpExpr{operand: operand, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -434,8 +428,8 @@ func (n *MinusExpr) String() string { return "-" }
 type NotExpr struct{ unOpExpr }
 
 // newNot returns a pointer to a NotExpr
-func newNot(operand Expr, tkn token) *NotExpr {
-	return &NotExpr{unOpExpr{operand: operand, token: tkn}}
+func newNot(operand Expr, tkn token.Token) *NotExpr {
+	return &NotExpr{unOpExpr{operand: operand, Token: tkn}}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -443,10 +437,14 @@ func (n *NotExpr) Accept(nw NodeWalker) WType { return nw.visitNot(n) }
 
 func (n *NotExpr) String() string { return "!" }
 
+// // Atom expressions
+// type funcCall struct {
+// }
+
 /* Literals */
 
 type literal struct {
-	token
+	token.Token
 	scope Scope
 }
 
@@ -465,8 +463,8 @@ type Num struct {
 }
 
 // newNumber creates a new pointer to the Num
-func newNumber(text string, tkn token) (*Num, error) {
-	n := &Num{literal: literal{token: tkn}, Text: text}
+func newNumber(text string, tkn token.Token) (*Num, error) {
+	n := &Num{literal: literal{Token: tkn}, Text: text}
 	i, err := strconv.ParseInt(text, 0, 64)
 	// If an int extraction succeeded, promote the float
 	if err == nil {
@@ -513,8 +511,8 @@ type Str struct {
 }
 
 // newString creates a new pointer to the Str
-func newString(text string, tkn token) *Str {
-	return &Str{literal: literal{token: tkn}, Value: text}
+func newString(text string, tkn token.Token) *Str {
+	return &Str{literal: literal{Token: tkn}, Value: text}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -531,8 +529,8 @@ type Null struct {
 }
 
 // newNull creates a new pointer to the Null
-func newNull(text string, tkn token) *Null {
-	return &Null{literal: literal{token: tkn}, Text: text}
+func newNull(text string, tkn token.Token) *Null {
+	return &Null{literal: literal{Token: tkn}, Text: text}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -548,12 +546,12 @@ type Bool struct {
 }
 
 // newBool creates a new pointer to the Bool
-func newBool(text string, tknTyp tokenType, tkn token) (*Bool, error) {
+func newBool(text string, tknTyp token.Type, tkn token.Token) (*Bool, error) {
 	switch tknTyp {
-	case tokenTrue:
-		return &Bool{literal: literal{token: tkn}, Value: true, Text: text}, nil
-	case tokenFalse:
-		return &Bool{literal: literal{token: tkn}, Value: false, Text: text}, nil
+	case token.TRUE:
+		return &Bool{literal: literal{Token: tkn}, Value: true, Text: text}, nil
+	case token.FALSE:
+		return &Bool{literal: literal{Token: tkn}, Value: false, Text: text}, nil
 	default:
 		return nil, fmt.Errorf("illegal bool syntax: %q", text)
 	}
@@ -570,8 +568,8 @@ type List struct {
 	elements []Expr
 }
 
-func newList(elems []Expr, tkn token) *List {
-	return &List{literal: literal{token: tkn}, elements: elems}
+func newList(elems []Expr, tkn token.Token) *List {
+	return &List{literal: literal{Token: tkn}, elements: elems}
 }
 
 // Accept marshalls the AST node walker to the correct visit method
@@ -585,7 +583,7 @@ type ID struct {
 	value string
 }
 
-func newID(value string, tkn token) *ID { return &ID{literal{token: tkn}, value} }
+func newID(value string, tkn token.Token) *ID { return &ID{literal{Token: tkn}, value} }
 
 // Scope : self-explanatory
 func (n *ID) Scope() Scope   { return n.scope }
