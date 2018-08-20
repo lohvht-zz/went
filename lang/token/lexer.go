@@ -8,7 +8,8 @@ import (
 )
 
 // Most of this package is listed and adapted from
-// https://golang.org/src/text/template/parse/lex.go
+// https://golang.org/src/text/template/parse/lex.go and partially taken from
+// https://golang.org/src/go/scanner/scanner.go
 
 // Tokenise creates a new scanner for the input string
 func Tokenise(name, input string) *Lexer {
@@ -150,9 +151,8 @@ func (l *Lexer) acceptRun(valid string) {
 	l.backup()
 }
 
-// errorf returns an error Token and terminates the scan by passing back a nil
+// errorf emits an error Token and terminates the scan by passing back a nil
 // pointer that will be the next state, terminating l.nextToken.
-// also emits an error Token.
 func (l *Lexer) errorf(format string, args ...interface{}) stateFunc {
 	l.tokens <- Token{
 		ERROR,
@@ -168,29 +168,6 @@ func (l *Lexer) run() {
 		state = state(l)
 	}
 	close(l.tokens)
-}
-
-// does not accept leading +=
-func (l *Lexer) scanNumber() bool {
-	digits := "0123456789"
-	leadingSigns := "+-"
-	l.acceptRun(digits)
-	// Decimal
-	if l.accept(".") {
-		l.acceptRun(digits)
-	}
-	// Powers of 10
-	if l.accept("eE") {
-		l.accept(leadingSigns)
-		l.accept(digits)
-	}
-	// Check if the next rune is alphanumeric
-	// The next number can't be digits as we have already scanned all the digits
-	if isAlphaNumeric(l.peek()) {
-		l.next()
-		return false
-	}
-	return true
 }
 
 // atIdentifierTerminator reports whether the input is at valid
@@ -338,7 +315,7 @@ Loop:
 	}
 	switch l.prevTokTyp {
 	case NAME, RAWSTR, STR, FALSE,
-		TRUE, NUM, BREAK, CONT, RETURN,
+		TRUE, INT, FLOAT, BREAK, CONT, RETURN,
 		RROUND, RSQUARE, RCURLY:
 		l.emit(SEMICOLON)
 	default:
@@ -395,7 +372,7 @@ Loop:
 // The first character ('+', '-', '/', '%', '*', '=', '!', '>', '<') has already
 // been consumed
 func lexOperator(l *Lexer) stateFunc {
-	r := l.Input[int(l.start)] // store the 1st character somewhere
+	r := l.Input[l.start] // store the 1st character somewhere
 	if l.next() != '=' {
 		l.backup() // go back to capture 'r' only
 		switch r {
@@ -444,13 +421,64 @@ func lexOperator(l *Lexer) stateFunc {
 	return lexCode
 }
 
-// lexNumber scan for a decimal number, it isn't a perfect number scanner
-// for e.g. it accepts '.' and '089', but when its wrong the input is invalid
-func lexNumber(l *Lexer) stateFunc {
-	if !l.scanNumber() {
-		return l.errorf("Bad number syntax: %q", l.Input[l.start:l.pos])
+// scanSignificand scans for all numbers (of the given base) up to a non-number
+func (l *Lexer) scanSignificand(base int) {
+	for digitValue(l.peek()) < base {
+		l.next()
 	}
-	l.emit(NUM)
+}
+
+// lexNumber scans for a number, seenDecimalPoint indicates that the lexer has
+// seen the '.', but has yet to consume it
+func lexNumber(l *Lexer) stateFunc {
+	emitTyp := INT
+	// Seen decimal point --> is a float (i.e. .1234E10 for example)
+	if l.peek() == '.' {
+		goto FRACTION
+	}
+
+	// Leading 0 ==> hexadecimal ("0x"/"0X") or octal 0
+	if l.peek() == '0' {
+		if l.accept("xX") {
+			// hexadecimal int
+			l.scanSignificand(16)
+			if l.pos-l.start <= 2 {
+				// Only scanned "0x" or "0X"
+				return l.errorf("illegal hexadecimal number: %q", l.Input[l.start:l.pos])
+			}
+		} else {
+			l.scanSignificand(8)
+			if l.accept("89") {
+				// error, illegal octal int/float
+				l.scanSignificand(10)
+				return l.errorf("illegal octal number: %q", l.Input[l.start:l.pos])
+			}
+			if r := l.peek(); r == '.' || r == 'e' || r == 'E' {
+				// NOTE: ".eEi" including imaginary number, if we wanna support it in the future
+				// Octal float
+				goto FRACTION
+			}
+		}
+		l.emit(emitTyp)
+		return lexCode
+	}
+	// Decimal integer/float
+	l.scanSignificand(10)
+FRACTION: // handles all other floating point lexing
+	if l.accept(".") {
+		emitTyp = FLOAT
+		l.scanSignificand(10)
+	}
+	if l.accept("eE") {
+		emitTyp = FLOAT
+		l.accept("+-")
+		if digitValue(l.peek()) < 10 {
+			l.scanSignificand(10)
+		} else {
+			return l.errorf("Illegal floating-point exponent: %q", l.Input[l.start:l.pos])
+		}
+	}
+	l.emit(emitTyp)
 	return lexCode
 }
 
@@ -552,4 +580,16 @@ func isEndOfLine(r rune) bool {
 
 func isAlphaNumeric(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+func digitValue(ch rune) int {
+	switch {
+	case '0' <= ch && ch <= '9':
+		return int(ch - '0')
+	case 'a' <= ch && ch <= 'f':
+		return int(ch - 'a' + 10)
+	case 'A' <= ch && ch <= 'F':
+		return int(ch - 'A' + 10)
+	}
+	return 16 // larger than any legal digit val
 }

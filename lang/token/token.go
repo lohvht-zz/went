@@ -74,7 +74,8 @@ const (
 
 	//Literal tokens (not including object, array)
 	NAME
-	NUM    // Integer64 or float64 numbers
+	INT    // Integer64
+	FLOAT  // float64 numbers
 	STR    // Singly quoted ('\'') strings, escaped using a single '\' char
 	RAWSTR // tilde quoted ('`') strings, intepreted as-is, with no way of escaping
 
@@ -136,7 +137,8 @@ var tokenTypes = [...]string{
 	RCURLY:      "}",
 	RSQUARE:     "]",
 	NAME:        "NAME",
-	NUM:         "NUMBER",
+	INT:         "INTEGER",
+	FLOAT:       "FLOAT",
 	STR:         "STRING",
 	RAWSTR:      "RAWSTRING",
 	PLUS:        "+",
