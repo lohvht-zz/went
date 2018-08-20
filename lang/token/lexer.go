@@ -13,10 +13,12 @@ import (
 // Tokenise creates a new scanner for the input string
 func Tokenise(name, input string) *Lexer {
 	l := &Lexer{
-		Name:   name,
-		Input:  input,
-		tokens: make(chan Token),
-		line:   1,
+		Name:    name,
+		Input:   input,
+		tokens:  make(chan Token),
+		line:    1,
+		col:     1,
+		prevCol: 1,
 	}
 	go l.run()
 	return l
@@ -40,13 +42,17 @@ type Lexer struct {
 	Input  string     // string being scanned
 	tokens chan Token // channel of the scanned items
 
+	// current state to track & emit info
+	pos     int // current position
+	line    int // 1 + number of newlines seen
+	col     int // 1 + current column number
+	prevCol int // previous column number seen (ensure backup() is correct)
+
 	// Internal lexer state
-	pos          Pos       // current position
-	start        Pos       // start position of this Token
-	width        Pos       // width of the last rune read from input
+	start        int       // start position of the current token
+	width        int       // width of the last rune read from input
 	prevTokTyp   Type      // previous Token type used for automatic semicolon insertion
 	bracketStack runeStack // a stack of runes used to keep track of all '(', '[' and '{'
-	line         LinePos   // 1 + number of newlines seen
 }
 
 const eof = -1
@@ -83,10 +89,15 @@ func (l *Lexer) next() rune {
 		return eof
 	}
 	r, w := utf8.DecodeRuneInString(l.Input[l.pos:])
-	l.width = Pos(w)
+	l.width = w
 	l.pos += l.width
+	// handle columns and lines seen
 	if r == '\n' {
 		l.line++
+		l.col = 1
+	} else {
+		l.prevCol = l.col
+		l.col++
 	}
 	return r
 }
@@ -101,7 +112,8 @@ func (l *Lexer) peek() rune {
 // backup steps back one rune, can only be called once per call of next
 func (l *Lexer) backup() {
 	l.pos -= l.width
-	// correct newline count
+	l.col = l.prevCol
+	// handle columns and lines seen
 	if l.width == 1 && l.Input[l.pos] == '\n' {
 		l.line--
 	}
@@ -110,23 +122,17 @@ func (l *Lexer) backup() {
 // emit passes a Token back to the client
 // this will also update the last seen emitted Token type
 func (l *Lexer) emit(typ Type) {
-	l.tokens <- Token{typ, l.Input[l.start:l.pos], l.start, l.line}
-	// Some of the tokens contain text internally, if so, count their newlines
-	switch typ {
-	case RAWSTR:
-		l.line += LinePos(strings.Count(l.Input[l.start:l.pos], "\n"))
+	l.tokens <- Token{
+		typ,
+		l.Input[l.start:l.pos],
+		Position{l.Name, l.start, l.line, l.col},
 	}
 	l.start = l.pos
 	l.prevTokTyp = typ
 }
 
 // ignore skips over the pending input before this point
-func (l *Lexer) ignore(countSpace bool) {
-	if countSpace {
-		l.line += LinePos(strings.Count(l.Input[l.start:l.pos], "\n"))
-	}
-	l.start = l.pos
-}
+func (l *Lexer) ignore() { l.start = l.pos }
 
 // accept consumes the next rune if its from the valid set
 func (l *Lexer) accept(valid string) bool {
@@ -148,7 +154,11 @@ func (l *Lexer) acceptRun(valid string) {
 // pointer that will be the next state, terminating l.nextToken.
 // also emits an error Token.
 func (l *Lexer) errorf(format string, args ...interface{}) stateFunc {
-	l.tokens <- Token{ERROR, fmt.Sprintf(format, args...), l.start, l.line}
+	l.tokens <- Token{
+		ERROR,
+		fmt.Sprintf(format, args...),
+		Position{l.Name, l.start, l.line, l.col},
+	}
 	return nil
 }
 
@@ -234,10 +244,10 @@ func lexCode(l *Lexer) stateFunc {
 			l.errorf("expected Token %#U", r)
 		}
 	case r == '\'':
-		l.ignore(false) // ignore the opening quote
+		l.ignore() // ignore the opening quote
 		return lexQuotedString
 	case r == '`':
-		l.ignore(false) // ignore the opening quote
+		l.ignore() // ignore the opening quote
 		return lexRawString
 	case r == '.':
 		// Special lookahead for ".property" so we don't break l.backup()
@@ -305,7 +315,7 @@ func lexSpace(l *Lexer) stateFunc {
 	for isSpace(l.peek()) {
 		l.next()
 	}
-	l.ignore(false)
+	l.ignore()
 	return lexCode
 }
 
@@ -332,7 +342,7 @@ Loop:
 		RROUND, RSQUARE, RCURLY:
 		l.emit(SEMICOLON)
 	default:
-		l.ignore(false) // do not count the spaces as the next() already adds
+		l.ignore() // do not count the spaces as the next() already adds
 	}
 	return lexCode
 }
@@ -353,20 +363,22 @@ Loop:
 	}
 	l.emit(STR)
 	l.next()
-	l.ignore(false) // now consume and ignore the closing quote
+	l.ignore() // now consume and ignore the closing quote
 	return lexCode
 }
 
 // lexRawString scans a raw string delimited by '`' character
 func lexRawString(l *Lexer) stateFunc {
 	startLine := l.line
+	startCol := l.col
 Loop:
 	for {
 		switch l.next() {
 		case eof:
-			// restore line number to the location of the opening quote
+			// restore line and col number to the location of the opening quote
 			// will error out, okay to overwrite l.line
 			l.line = startLine
+			l.col = startCol
 			return l.errorf("Unterminated raw string")
 		case '`':
 			l.backup() // move back before the closing quote
@@ -375,7 +387,7 @@ Loop:
 	}
 	l.emit(RAWSTR)
 	l.next()
-	l.ignore(false) // now consume and ignore the closing quote
+	l.ignore() // now consume and ignore the closing quote
 	return lexCode
 }
 
@@ -500,32 +512,31 @@ func lexRightBracket(l *Lexer) stateFunc {
 }
 
 // lexSinglelineComment scans a single line comment ('//') and discards it
-// The comment marker ('//') has already been consumed
-// This assumes that the entire line is scanned, if no newline is detected, then
-// it will basically count to EOF
 func lexSinglelineComment(l *Lexer) stateFunc {
-	if i := strings.Index(l.Input[l.pos:], "\n"); i < 0 {
-		// Major assumption, if the index of newline ("\n") is not found, then the input
-		// has only 1 single line with a comment somewhere on the line
-		// Move the positional scanner to the end of the file
-		l.pos += Pos(len(l.Input[l.pos:]))
-	} else {
-		l.pos += Pos(i)
+	for {
+		if r := l.next(); isEndOfLine(r) || r == eof {
+			break
+		}
 	}
-	l.ignore(false)
+	l.ignore()
 	return lexCode
 }
 
 // lexMultilineComment scans for a multiline comment block ('/*', '*/') and discards it
 // The left comment marker ('/*') has already been consumed
 func lexMultilineComment(l *Lexer) stateFunc {
-	rightComment := "*/"
-	i := strings.Index(l.Input[l.pos:], rightComment)
-	if i < 0 {
+	if i := strings.Index(l.Input[l.pos:], "*/"); i < 0 {
 		return l.errorf("Multiline comment is not closed")
 	}
-	l.pos += Pos(i + len(rightComment))
-	l.ignore(true)
+	var left, right rune
+	right = l.next()
+	for {
+		left, right = right, l.next()
+		if left == '*' && right == '/' {
+			break
+		}
+	}
+	l.ignore()
 	return lexCode
 }
 

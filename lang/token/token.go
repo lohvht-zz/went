@@ -5,27 +5,35 @@ import (
 	"strconv"
 )
 
-// Token represents a Token
-type Token struct {
-	Type
-	Value string  // value of this item
-	Pos   Pos     // Starting position, in bytes of this item in the input string
-	Line  LinePos // Line number at the start of this item
+// Position describes a source position, including the input's name, line, col
+// location
+type Position struct {
+	Name   string // name of the current input
+	Offset int    // offset from the start of the input string (start from 0)
+	Line   int    // line number, starts from 1
+	Column int    // column number, starts from 1
 }
 
-// Pos represents the byte position in the original input text from which
-// this file was parsed
-type Pos int
+// String returns a string in one of the following forms:
+// 		file:line:column 	position if filename is set
+// 		line:column				position if filename is not set
+func (pos Position) String() string {
+	s := pos.Name
+	if s != "" {
+		s += ":"
+	}
+	s += fmt.Sprintf("%d:%d", pos.Line, pos.Column)
+	return s
+}
 
-// LinePos represents the Line position of the original input text from which
-// the file was parsed
-type LinePos int
-
-// Position returns Pos
-func (tok Token) Position() Pos { return tok.Pos }
-
-// LinePosition returns LinePos
-func (tok Token) LinePosition() LinePos { return tok.Line }
+// Token represents a Token of the Went programming language
+// It holds the type the token, its value in terms of string val, as well
+// as its position within the source input
+type Token struct {
+	Type
+	Value string // value of this item
+	Pos   Position
+}
 
 func (tok Token) String() string {
 	switch {

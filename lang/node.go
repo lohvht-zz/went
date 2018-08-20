@@ -14,20 +14,20 @@ var textFormat = "%s" // change to "%q" in tests for better error messages
 type Node interface {
 	Scope() Scope            // returns the scope of a Node
 	Accept(NodeWalker) WType // Accepts and marshalls the Nodewalker to the correct visit function
-	Position() token.Pos     // byte position of start of the node, in full original input string
-	LinePosition() token.LinePos
+	Start() token.Position   // position of the 1st character belonging to the node
+	End() token.Position     // position of the 1st character immediately after the node
 }
 
 // Stmt interface, all statment nodes implements this
 type Stmt interface {
 	Node
-	Statement()
+	stmt()
 }
 
 // Expr interface, all expression nodes implements this
 type Expr interface {
 	Node
-	Expression()
+	expr()
 }
 
 // ExprStmt is an expression statement, it can have a comma separated
@@ -47,9 +47,7 @@ func (n *ExprStmt) Scope() Scope { return n.scope }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *ExprStmt) Accept(nw NodeWalker) WType { return nw.visitExprStmt(n) }
-
-// Statement node
-func (n *ExprStmt) Statement() {}
+func (n *ExprStmt) stmt()                      {}
 
 // AssignStmt is the assignment statement
 type AssignStmt struct {
@@ -68,9 +66,7 @@ func (n *AssignStmt) Scope() Scope { return n.scope }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *AssignStmt) Accept(nw NodeWalker) WType { return nw.visitAssignStmt(n) }
-
-// Statement node
-func (n *AssignStmt) Statement() {}
+func (n *AssignStmt) stmt()                      {}
 
 // PlusAssignStmt is the assignment statement
 type PlusAssignStmt struct {
@@ -89,9 +85,7 @@ func (n *PlusAssignStmt) Scope() Scope { return n.scope }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *PlusAssignStmt) Accept(nw NodeWalker) WType { return nw.visitPlusAssignStmt(n) }
-
-// Statement node
-func (n *PlusAssignStmt) Statement() {}
+func (n *PlusAssignStmt) stmt()                      {}
 
 // MinusAssignStmt is the assignment statement
 type MinusAssignStmt struct {
@@ -110,9 +104,7 @@ func (n *MinusAssignStmt) Scope() Scope { return n.scope }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *MinusAssignStmt) Accept(nw NodeWalker) WType { return nw.visitMinusAssignStmt(n) }
-
-// Statement node
-func (n *MinusAssignStmt) Statement() {}
+func (n *MinusAssignStmt) stmt()                      {}
 
 // DivAssignStmt is the assignment statement
 type DivAssignStmt struct {
@@ -131,9 +123,7 @@ func (n *DivAssignStmt) Scope() Scope { return n.scope }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *DivAssignStmt) Accept(nw NodeWalker) WType { return nw.visitDivAssignStmt(n) }
-
-// Statement node
-func (n *DivAssignStmt) Statement() {}
+func (n *DivAssignStmt) stmt()                      {}
 
 // MultAssignStmt is the assignment statement
 type MultAssignStmt struct {
@@ -152,9 +142,7 @@ func (n *MultAssignStmt) Scope() Scope { return n.scope }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *MultAssignStmt) Accept(nw NodeWalker) WType { return nw.visitMultAssignStmt(n) }
-
-// Statement node
-func (n *MultAssignStmt) Statement() {}
+func (n *MultAssignStmt) stmt()                      {}
 
 // ModAssignStmt is the assignment statement
 type ModAssignStmt struct {
@@ -173,9 +161,7 @@ func (n *ModAssignStmt) Scope() Scope { return n.scope }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *ModAssignStmt) Accept(nw NodeWalker) WType { return nw.visitModAssignStmt(n) }
-
-// Statement node
-func (n *ModAssignStmt) Statement() {}
+func (n *ModAssignStmt) stmt()                      {}
 
 // An expression is represented by a tree consisting of one or more of
 // the following concrete expression nodes.
@@ -197,17 +183,22 @@ type (
 	}
 )
 
-func newBinOp(left, right Expr, op token.Token) *BinExpr {
+func newBinExpr(left, right Expr, op token.Token) *BinExpr {
 	return &BinExpr{operation: op, left: left, right: right}
 }
 
+// Scope returns the scope the current node is in
 func (n *BinExpr) Scope() Scope               { return n.scope }
-func (n *BinExpr) Expression()                {}
 func (n *BinExpr) Accept(nw NodeWalker) WType { return nw.visitBinExpr(n) }
+func (n *BinExpr) expr()                      {}
+
+func newUnExpr(operand Expr, op token.Token) *UnExpr {
+	return &UnExpr{operation: op, operand: operand}
+}
 
 func (n *UnExpr) Scope() Scope               { return n.scope }
-func (n *UnExpr) Expression()                {}
 func (n *UnExpr) Accept(nw NodeWalker) WType { return nw.visitUnExpr(n) }
+func (n *UnExpr) expr()                      {}
 
 // // Atom expressions
 // type funcCall struct {
@@ -222,7 +213,7 @@ type literal struct {
 
 func (n literal) Scope() Scope { return n.scope }
 
-func (n literal) Expression() {}
+func (n literal) expr() {}
 
 // Num holds a numerical constant: signed integer or float
 type Num struct {

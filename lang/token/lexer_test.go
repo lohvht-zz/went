@@ -96,13 +96,16 @@ var lexTests = []lexTestcase{
 		`/* This should be a comment
 		more paragraphs
 		and it should be parsed correctly
-		*/`,
-		[]Token{tknEOF},
+		*/
+		x = 3.123
+		`,
+		[]Token{makeName("x"), tknAss, makeToken(NUM, "3.123"), tknSemi, tknEOF},
 	},
 	{"division parse",
-		"x = 1.2 /* 2 *// 2",
+		`x = 1.2 /* 2 *// 2
+		`,
 		[]Token{makeName("x"), tknAss, makeToken(NUM, "1.2"),
-			tknDiv, makeToken(NUM, "2"), tknEOF,
+			tknDiv, makeToken(NUM, "2"), tknSemi, tknEOF,
 		},
 	},
 	{"keywords",
@@ -172,6 +175,11 @@ var lexTests = []lexTestcase{
 			makeError(`unclosed left bracket: U+0028 '('`),
 		},
 	},
+	{"unclosed multiline comment",
+		`/* This is an unclosed comment!
+		/`,
+		[]Token{makeError("Multiline comment is not closed")},
+	},
 }
 
 func TestLex(t *testing.T) {
@@ -213,10 +221,10 @@ func equal(tknLst1, tknLst2 []Token, checkPos bool) bool {
 				return false
 			}
 		}
-		if checkPos && tknLst1[k].Pos != tknLst2[k].Pos {
+		if checkPos && tknLst1[k].Pos.Offset != tknLst2[k].Pos.Offset {
 			return false
 		}
-		if checkPos && tknLst1[k].Line != tknLst2[k].Line {
+		if checkPos && tknLst1[k].Pos.Line != tknLst2[k].Pos.Line {
 			return false
 		}
 	}

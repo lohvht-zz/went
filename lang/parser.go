@@ -52,7 +52,7 @@ func (p *Parser) peek() token.Token {
 // errorf formats the error and terminates processing.
 func (p *Parser) errorf(format string, args ...interface{}) {
 	p.Root = nil
-	format = fmt.Sprintf("%s line %d: SyntaxError - %s", p.Name, p.currentToken.Line, format)
+	format = fmt.Sprintf("%s: SyntaxError - %s", p.currentToken.Pos.String(), format)
 	panic(fmt.Errorf(format, args...))
 }
 
@@ -182,7 +182,7 @@ func (p *Parser) orEval() Expr {
 	node := p.andEval()
 	for p.peek().Type == token.LOGICALOR {
 		tkn := p.next()
-		node = newBinOp(node, p.andEval(), tkn)
+		node = newBinExpr(node, p.andEval(), tkn)
 	}
 	return node
 }
@@ -192,7 +192,7 @@ func (p *Parser) andEval() Expr {
 	node := p.notEval()
 	for p.peek().Type == token.LOGICALAND {
 		tkn := p.next()
-		node = newAnd(node, p.notEval(), tkn)
+		node = newBinExpr(node, p.andEval(), tkn)
 	}
 	return node
 }
@@ -202,7 +202,7 @@ func (p *Parser) notEval() Expr {
 	switch p.peek().Type {
 	case token.LOGICALNOT:
 		tkn := p.next()
-		return newNot(p.notEval(), tkn)
+		return newUnExpr(p.notEval(), tkn)
 	default:
 		return p.comparison()
 	}
@@ -215,18 +215,11 @@ func (p *Parser) comparison() Expr {
 Loop:
 	for {
 		switch p.peek().Type {
-		case token.EQ, token.NEQ:
+		case token.EQ, token.NEQ,
+			token.SM, token.SMEQ,
+			token.GR, token.GREQ, token.IN:
 			tkn := p.next()
-			node = newEq(node, p.smExpr(), tkn.Type == token.NEQ, tkn)
-		case token.SM, token.SMEQ:
-			tkn := p.next()
-			node = newSm(node, p.smExpr(), tkn.Type == token.SMEQ, tkn)
-		case token.GR, token.GREQ:
-			tkn := p.next()
-			node = newGr(node, p.smExpr(), tkn.Type == token.GREQ, tkn)
-		case token.IN:
-			tkn := p.next()
-			node = newIn(node, p.smExpr(), tkn)
+			node = newBinExpr(node, p.smExpr(), tkn)
 		default:
 			break Loop
 		}
@@ -240,12 +233,9 @@ func (p *Parser) smExpr() Expr {
 Loop:
 	for {
 		switch p.peek().Type {
-		case token.PLUS:
+		case token.PLUS, token.MINUS:
 			tkn := p.next()
-			node = newAdd(node, p.term(), tkn)
-		case token.MINUS:
-			tkn := p.next()
-			node = newSubtract(node, p.term(), tkn)
+			node = newBinExpr(node, p.term(), tkn)
 		default:
 			break Loop
 		}
@@ -259,15 +249,9 @@ func (p *Parser) term() Expr {
 Loop:
 	for {
 		switch p.peek().Type {
-		case token.MULT:
+		case token.MULT, token.DIV, token.MOD:
 			tkn := p.next()
-			node = newMult(node, p.factor(), tkn)
-		case token.DIV:
-			tkn := p.next()
-			node = newDiv(node, p.factor(), tkn)
-		case token.MOD:
-			tkn := p.next()
-			node = newMod(node, p.factor(), tkn)
+			node = newBinExpr(node, p.factor(), tkn)
 		default:
 			break Loop
 		}
@@ -278,12 +262,9 @@ Loop:
 // factor: ("+" | "-") factor | atom;
 func (p *Parser) factor() Expr {
 	switch p.peek().Type {
-	case token.PLUS:
+	case token.PLUS, token.MINUS:
 		tkn := p.next()
-		return newPlus(p.factor(), tkn)
-	case token.MINUS:
-		tkn := p.next()
-		return newMinus(p.factor(), tkn)
+		return newUnExpr(p.factor(), tkn)
 	default:
 		return p.atom()
 	}
