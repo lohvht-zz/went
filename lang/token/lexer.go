@@ -194,86 +194,94 @@ func (l *Lexer) atIdentifierTerminator() bool {
 // stateFn represents the state of the scanner as a function that returns the next state
 type stateFunc func(*Lexer) stateFunc
 
+var vectoredLexState map[rune]stateFunc
+
+func init() {
+	vectoredLexState = map[rune]stateFunc{
+		eof: lexEOF, // where lexCode loop terminates
+		// Spaces
+		' ':  lexSpace,
+		'\t': lexSpace,
+		'\r': lexSpace,
+		'\n': lexNewline,
+
+		// Punctuations
+		':': func(l *Lexer) stateFunc { l.emit(COLON); return lexCode },
+		';': func(l *Lexer) stateFunc { l.emit(SEMICOLON); return lexCode },
+		',': func(l *Lexer) stateFunc { l.emit(COMMA); return lexCode },
+		'|': func(l *Lexer) stateFunc {
+			r := l.Input[l.start]
+			if l.next() == '|' {
+				l.emit(LOGICALOR)
+			} else {
+				l.errorf("expected Token %#U", r)
+			}
+			return lexCode
+		},
+		'&': func(l *Lexer) stateFunc {
+			r := l.Input[l.start]
+			if l.next() == '&' {
+				l.emit(LOGICALAND)
+			} else {
+				l.errorf("expected Token %#U", r)
+			}
+			return lexCode
+		},
+		'.': lexDot,
+
+		// quotes
+		'\'': lexQuotedString,
+		'`':  lexRawString,
+
+		// brackets
+		'(': func(l *Lexer) stateFunc { l.emit(LROUND); l.bracketStack.push('('); return lexCode },
+		'[': func(l *Lexer) stateFunc { l.emit(LSQUARE); l.bracketStack.push('['); return lexCode },
+		'{': func(l *Lexer) stateFunc { l.emit(LCURLY); l.bracketStack.push('{'); return lexCode },
+		')': lexRightBracket,
+		']': lexRightBracket,
+		'}': lexRightBracket,
+
+		// Operators
+		'+': lexOperator,
+		'-': lexOperator,
+		'*': lexOperator,
+		'%': lexOperator,
+		'=': lexOperator,
+		'!': lexOperator,
+		'<': lexOperator,
+		'>': lexOperator,
+		'/': func(l *Lexer) stateFunc { // handle for '/', can be comment or divide sign
+			// Special lookahead for '*' or '/', for comment check
+			if int(l.pos) < len(l.Input) {
+				switch r := l.Input[l.pos]; {
+				case r == '/':
+					return lexSinglelineComment
+				case r == '*':
+					return lexMultilineComment
+				}
+			}
+			return lexOperator
+		},
+	}
+	// runes for numbers to the lexState map
+	for r := '0'; r <= '9'; r++ {
+		vectoredLexState[r] = lexNumber
+	}
+}
+
 // lexCode scans the main body of the code, recursively returning itself
 func lexCode(l *Lexer) stateFunc {
-	switch r := l.next(); {
-	case r == eof: // Where the lexCode loop terminates, when it reaches EOF
-		return lexEOF
-	case isSpace(r):
-		return lexSpace
-	case isEndOfLine(r): // detects \r or \n
-		l.backup()
-		return lexNewline
-	case r == ':':
-		l.emit(COLON)
-	case r == ',':
-		l.emit(COMMA)
-	case r == '|':
-		if l.next() == '|' {
-			l.emit(LOGICALOR)
-		} else {
-			l.errorf("expected Token %#U", r)
-		}
-	case r == '&':
-		if l.next() == '&' {
-			l.emit(LOGICALAND)
-		} else {
-			l.errorf("expected Token %#U", r)
-		}
-	case r == '\'':
-		l.ignore() // ignore the opening quote
-		return lexQuotedString
-	case r == '`':
-		l.ignore() // ignore the opening quote
-		return lexRawString
-	case r == '.':
-		// Special lookahead for ".property" so we don't break l.backup()
-		if int(l.pos) < len(l.Input) {
-			r := l.Input[l.pos]
-			if r < '0' || r > '9' { // if its not a number
-				l.emit(DOT)
-				return lexCode // emit the dot '.' and go back to lexCode
-			}
-		}
-		fallthrough // '.' can start a number, especially next rune is a number
-	case '0' <= r && r <= '9':
-		l.backup()
-		return lexNumber
-	case r == '+', r == '-', r == '*', r == '%', // Math signs
-		r == '=', r == '!', r == '<', r == '>': //
-		return lexOperator
-	case r == '/':
-		// Special lookahead for '*' or '/', for comment check
-		if int(l.pos) < len(l.Input) {
-			switch r := l.Input[l.pos]; {
-			case r == '/':
-				return lexSinglelineComment
-			case r == '*':
-				return lexMultilineComment
-			}
-		}
-		return lexOperator
+	r := l.next()
+	if stfn, ok := vectoredLexState[r]; ok {
+		return stfn
+	}
+	switch {
 	case isAlphaNumeric(r):
 		l.backup()
 		return lexIdentifier
-	case r == ';':
-		l.emit(SEMICOLON)
-	case r == '(':
-		l.emit(LROUND)
-		l.bracketStack.push(r)
-	case r == '{':
-		l.emit(LCURLY)
-		l.bracketStack.push(r)
-	case r == '[':
-		l.emit(LSQUARE)
-		l.bracketStack.push(r)
-	case r == ')', r == '}', r == ']':
-		l.backup()
-		return lexRightBracket
 	default:
 		return l.errorf("unrecognised character in code: %#U", r)
 	}
-	return lexCode
 }
 
 // lexEOF emits the EOF Token and handles the termination of the main lexCode loop
@@ -303,6 +311,7 @@ func lexSpace(l *Lexer) stateFunc {
 // 2. the Token is a `break`, `return` or `continue`
 // 3. Token closes a round, square, or curly bracket (')', ']', '}')
 func lexNewline(l *Lexer) stateFunc {
+	l.backup()
 Loop:
 	for {
 		switch r := l.next(); {
@@ -326,6 +335,7 @@ Loop:
 
 // lexQuotedString scans a quoted string, can be escaped using the '\' character
 func lexQuotedString(l *Lexer) stateFunc {
+	l.ignore() // ignore the opening quote
 Loop:
 	for {
 		switch l.next() {
@@ -346,6 +356,7 @@ Loop:
 
 // lexRawString scans a raw string delimited by '`' character
 func lexRawString(l *Lexer) stateFunc {
+	l.ignore() // ignore the opening quote
 	startLine := l.line
 	startCol := l.col
 Loop:
@@ -366,6 +377,19 @@ Loop:
 	l.next()
 	l.ignore() // now consume and ignore the closing quote
 	return lexCode
+}
+
+// lexDot scans a dot and determines if its part of the number or a dot
+// to access property
+func lexDot(l *Lexer) stateFunc {
+	// Special lookahead for ".property" so we don't break l.backup()
+	if int(l.pos) < len(l.Input) {
+		if r := l.Input[l.pos]; r < '0' || r > '9' { // if its not a number
+			l.emit(DOT)
+			return lexCode // emit the dot '.' and go back to lexCode
+		}
+	}
+	return lexNumber
 }
 
 // lexOperator scans for a potential operator
@@ -428,15 +452,15 @@ func (l *Lexer) scanSignificand(base int) {
 	}
 }
 
-// lexNumber scans for a number, seenDecimalPoint indicates that the lexer has
-// seen the '.', but has yet to consume it
+// lexNumber scans for a number, assumes that the lexer has not consumed the start
+// of the number (either number or a dot)
 func lexNumber(l *Lexer) stateFunc {
+	l.backup() // backup to see the '.' or numerical runes
 	emitTyp := INT
 	// Seen decimal point --> is a float (i.e. .1234E10 for example)
 	if l.peek() == '.' {
 		goto FRACTION
 	}
-
 	// Leading 0 ==> hexadecimal ("0x"/"0X") or octal 0
 	if l.peek() == '0' {
 		if l.accept("xX") {
@@ -517,7 +541,8 @@ var bracketMap = map[rune]rune{
 // This function also runs ASI (Rule 2), a semicolon may be omitted before closing
 // the right curly bracket, this allows complex statements to occupy a single line
 func lexRightBracket(l *Lexer) stateFunc {
-	r := l.next()
+	l.backup()
+	r := l.next() // backup to capture r
 	if l.bracketStack.empty() {
 		return l.errorf("unexpected right bracket %#U", r)
 	} else if toCheck := l.bracketStack.pop(); toCheck != bracketMap[r] {
