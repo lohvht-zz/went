@@ -11,12 +11,15 @@ import (
 
 // NOTE: write-up on how to decouple CLI and Running commands
 // https://npf.io/2016/10/reusable-commands/
+// NOTE: Find prompt/build one that supports multiline inputs similar to browser
+// javascript console debugger
 
 // Run starts the command line process, returning an error code when the process is
 // finished
 func Run() int {
 	// if len(os.Args) < 2 {
-	// 	fmt.Println("Entering Interpreter Mode")
+	// 	interactiveMode()
+	// 	return 0
 	// }
 	filePtr := flag.String("f", "", "Script file to read and parse (Required)")
 	flag.Parse()
@@ -40,10 +43,30 @@ func Run() int {
 	return 0
 }
 
-// func interpreterMode() {
-// REVIEW: Make a mode that runs line-by-line interpretation in a manner similar
-// to Python IDLE or javascript consoles for browsers
+// func executor(in string) {
+// 	fmt.Println("Your input is: \n", in)
+// }
 
+// func completer(t prompt.Document) []prompt.Suggest {
+// 	s := []prompt.Suggest{{Text: "var"}, {Text: "func"}}
+// 	return prompt.FilterHasPrefix(s, t.GetWordBeforeCursor(), true)
+// }
+
+// // REVIEW: Make a mode that runs line-by-line interpretation in a manner similar
+// // to Python IDLE or javascript consoles for browsers
+// // NOTE: Tried out go-prompt and termbox-go, both aren't satisfactory in giving
+// // the behaviour I want out of the box, most likely will go with termbox-go as
+// // it is less opinionated on how it handles newlines (since its lower level)
+// func interactiveMode() int {
+// 	p := prompt.New(
+// 		executor,
+// 		completer,
+// 		prompt.OptionPrefix(">>> "),
+// 		prompt.OptionTitle("Went Interactive Interpreter"),
+// 		// prompt.OptionAddKeyBind()
+// 	)
+// 	p.Run()
+// 	return 0
 // }
 
 // parseInput takes in the string input and runs the language

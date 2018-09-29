@@ -4,8 +4,8 @@ package lang
 // symbol table
 type Symbol interface {
 	Name() string
-	SetScope(Scope)
 	String() string
+	setScope(Scope)
 }
 
 // baseSymbol is the base implementation for a Symbol, to be embedded
@@ -17,100 +17,88 @@ type baseSymbol struct {
 // Name returns the name of the symbol
 func (s baseSymbol) Name() string { return s.name }
 
-// SetScope sets the scope field of a symbol
-func (s baseSymbol) SetScope(scope Scope) { s.scope = scope }
+// setScope sets the scope field of a symbol
+func (s baseSymbol) setScope(scope Scope) { s.scope = scope }
 
 func (s baseSymbol) String() string { return s.Name() }
-
-// TypeSymbol is a symbol that represents any given type, self-defined or built-in
-type TypeSymbol struct{ baseSymbol }
 
 // VarSymbol is symbol that represents a variable (using an identifier)
 type VarSymbol struct{ baseSymbol }
 
-// Built-in Types Symbols
-var (
-	intType   = TypeSymbol{baseSymbol{name: "int"}}
-	floatType = TypeSymbol{baseSymbol{name: "float"}}
-	listType  = TypeSymbol{baseSymbol{name: "list"}}
-	mapType   = TypeSymbol{baseSymbol{name: "map"}}
-	nullType  = TypeSymbol{baseSymbol{name: "null"}}
-	boolType  = TypeSymbol{baseSymbol{name: "bool"}}
-
-	DefaultTypeMap = map[string]TypeSymbol{
-		"int":   intType,
-		"float": floatType,
-		"list":  listType,
-		"map":   mapType,
-		"null":  nullType,
-		"bool":  boolType,
-	}
-)
-
 // Scope refers to the scope that is used to track symbols from the program
 type Scope interface {
-	ParentScope() Scope                 // gets the parent scope
-	Define(Symbol)                      // define symbols in this scope
+	ScopeName() string
+	EnclosingScope() (Scope, bool)      // gets the parent scope if available
 	Resolve(name string) (Symbol, bool) // lookup scopenames
+	// private
+	define(Symbol) // define symbols in this scope
 }
 
-// baseScope implements most of the important Scope logic, to be embedded within
-// other implementations of Scope
+// DefineSymbol defines a symbol in the given scope, adding it into the scope
+// as well as setting the symbol's scope to this scope.
+func DefineSymbol(symbol Symbol, scope Scope) {
+	scope.define(symbol)
+	symbol.setScope(scope)
+}
+
+// baseScope implements most of the base implementation of Scopes in went
+// NOTE: baseScope is not a complete implementation of Scope (Does not implement
+// ScopeName), should be embedded
 type baseScope struct {
-	parentScope Scope
-	symbols     map[string]Symbol
+	enclosingScope Scope
+	symbols        map[string]Symbol
 }
 
-func newBaseScope(parent Scope) baseScope {
-	return baseScope{parentScope: parent, symbols: map[string]Symbol{}}
-}
-
-func (bs baseScope) ParentScope() Scope {
-	return bs.parentScope
-}
-
-func (bs baseScope) Define(symb Symbol) {
-	bs.symbols[symb.Name()] = symb
-	symb.SetScope(bs)
-}
-
-func (bs baseScope) Resolve(name string) (Symbol, bool) {
-	s, ok := bs.symbols[name]
-	if ok {
-		return s, true
+func (s *baseScope) EnclosingScope() (Scope, bool) {
+	if s.enclosingScope != nil {
+		return nil, false
 	}
-	return nil, ok
+	return s.enclosingScope, true
 }
 
-// GlobalScope is the global context that should be accessible by other scopes
+func (s *baseScope) Resolve(name string) (Symbol, bool) {
+	symbol, ok := s.symbols[name]
+	if ok {
+		return symbol, ok
+	}
+	es, ok := s.EnclosingScope()
+	if ok {
+		return es.Resolve(name)
+	}
+	return nil, false
+}
+
+// puts the symbol in the symbols map, not meant to be directly called
+func (s *baseScope) define(symbol Symbol) { s.symbols[symbol.Name()] = symbol }
+
+// GlobalScope is the top level scope in the program, it has no enclosing scope
 type GlobalScope struct{ baseScope }
 
-// NewGlobalScope returns a pointer to a GlobalScope
-func NewGlobalScope() *GlobalScope {
-	return &GlobalScope{baseScope: newBaseScope(nil)}
-}
+// ScopeName returns global
+func (s *GlobalScope) ScopeName() string { return "global" }
 
-// LocalScope is an accessible inner scope
+// NewGlobalScope returns a new global scope
+func NewGlobalScope() *GlobalScope { return &GlobalScope{baseScope{}} }
+
+// LocalScope is any local scope that is created by the program via blocks
+// These blocks are enclosed in '{' '}'
 type LocalScope struct{ baseScope }
 
-// NewLocalScope returns a pointer to a LocalScope
+// ScopeName returns local
+func (s *LocalScope) ScopeName() string { return "local" }
+
+// NewLocalScope returns a new local scope, that has its parent set
 func NewLocalScope(parent Scope) *LocalScope {
-	return &LocalScope{baseScope: newBaseScope(parent)}
+	return &LocalScope{baseScope{enclosingScope: parent}}
 }
 
-// SymbolTable holds the symbol for 1 run of the interpreter
-type SymbolTable struct{ globals *GlobalScope }
-
-// NewSymbolTable initialises the built-in types
-func NewSymbolTable() *SymbolTable {
-	st := &SymbolTable{globals: NewGlobalScope()}
-	st.initTypeSystem()
-	return st
+// FunctionSymbol is a Symbol that also has a Scope, does not use baseScope's
+// implementation
+type FunctionSymbol struct {
+	baseSymbol
+	enclosingScope Scope
+	formalArgs     map[string]Symbol
+	funcBlock      Node // holds the node where the function block is
 }
 
-// initTypeSystem initialises the built-in types that went supports
-func (symbtab *SymbolTable) initTypeSystem() {
-	for _, v := range DefaultTypeMap {
-		symbtab.globals.Define(v)
-	}
-}
+// TODO: Override baseSymbol's Name()

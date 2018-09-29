@@ -37,11 +37,11 @@ type NodeWalker interface {
 	// visitNot(*NotExpr) WType
 
 	// visit literals
-	visitNum(*Num) WType
-	visitStr(*Str) WType
-	visitNull(*Null) WType
-	visitBool(*Bool) WType
-	visitList(*List) WType
-
-	visitID(*ID) WType
+	visitLiteral(*Literal) WType
+	// visitNum(*Num) WType
+	// visitStr(*Str) WType
+	// visitNull(*Null) WType
+	// visitBool(*Bool) WType
+	// visitList(*List) WType
+	// visitID(*ID) WType
 }

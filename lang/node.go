@@ -212,8 +212,9 @@ type literal struct {
 }
 
 func (n literal) Scope() Scope { return n.scope }
+func (n literal) expr()        {}
 
-func (n literal) expr() {}
+// func (n literal) Accept(nw NodeWalker) WType { return nw.visitLiteral(n) }
 
 // Num holds a numerical constant: signed integer or float
 type Num struct {
@@ -341,3 +342,15 @@ func (n *ID) Scope() Scope { return n.scope }
 
 // Accept marshalls the AST node walker to the correct visit method
 func (n *ID) Accept(nw NodeWalker) WType { return nw.visitID(n) }
+
+// TODO: fix all the errors
+// 1) Remove individual types for basic literals (add in basic literal kinds)
+// 		1.1) this is for constant literals like FLOAT, INT, STRING, RAWSTRING,
+//		BOOL & NULL
+// 		1.2) Implement them as a list of literals
+// 2) implement the Pos Start and End methods for what we have now
+// 3) Implement Composite literal types (Lists, Maps, Classes)
+// 4) Investigate how golang traverses its ast
+// 		4.1) Refactor traversing and decouple it to any 1 implementation
+// 5) Refactor how errors are being handled in the first place!
+// (parse/syntax errors should not terminate the parsing --> Collect errors)
