@@ -297,13 +297,13 @@ TrailerLoop:
 // mapList: keyval ("," keyval)* [","];
 // keyval: (ID | STR) ":" expr;
 func (p *Parser) atom() Expr {
-	tkn := p.expectRange("atom type check", token.NAME, token.NUM,
+	tkn := p.expectRange("atom type check", token.NAME, token.INT, token.FLOAT,
 		token.RAWSTR, token.STR, token.NULL, token.FALSE, token.TRUE,
 		token.LROUND, token.LSQUARE)
 	switch tkn.Type {
 	case token.NAME:
 		return newID(tkn.Value, tkn)
-	case token.NUM:
+	case token.INT, token.FLOAT:
 		n, err := newNumber(tkn.Value, tkn)
 		if err != nil {
 			p.error(err)

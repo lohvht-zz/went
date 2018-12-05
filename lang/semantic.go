@@ -49,6 +49,7 @@ var (
 
 // Scope refers to the scope that is used to track symbols from the program
 type Scope interface {
+	NScope() Scope                      // returns itself
 	ParentScope() Scope                 // gets the parent scope
 	Define(Symbol)                      // define symbols in this scope
 	Resolve(name string) (Symbol, bool) // lookup scopenames
@@ -65,10 +66,8 @@ func newBaseScope(parent Scope) baseScope {
 	return baseScope{parentScope: parent, symbols: map[string]Symbol{}}
 }
 
-func (bs baseScope) ParentScope() Scope {
-	return bs.parentScope
-}
-
+func (bs baseScope) NScope() Scope      { return bs }
+func (bs baseScope) ParentScope() Scope { return bs.parentScope }
 func (bs baseScope) Define(symb Symbol) {
 	bs.symbols[symb.Name()] = symb
 	symb.SetScope(bs)

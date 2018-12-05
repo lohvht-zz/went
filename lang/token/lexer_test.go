@@ -211,20 +211,14 @@ func equal(tknLst1, tknLst2 []Token, checkPos bool) bool {
 		return false
 	}
 	for k := range tknLst1 {
-		if tknLst1[k].Type != tknLst2[k].Type {
-			return false
-		}
-		if tknLst1[k].Value != tknLst2[k].Value {
-			// Check due to Automatic semicolon insertion, some semicolon tokens may
-			// contain values in the strings that correspond
-			if tknLst1[k].Type != SEMICOLON || tknLst2[k].Type != SEMICOLON {
-				return false
-			}
-		}
-		if checkPos && tknLst1[k].Pos.Offset != tknLst2[k].Pos.Offset {
-			return false
-		}
-		if checkPos && tknLst1[k].Pos.Line != tknLst2[k].Pos.Line {
+		tkn1 := tknLst1[k]
+		tkn2 := tknLst2[k]
+		switch {
+		case tkn1.Type != tkn2.Type,
+			tkn1.Value != tkn2.Value && !(tkn1.Type == SEMICOLON && tkn2.Type == SEMICOLON),
+			checkPos && tkn1.Pos.Line != tkn2.Pos.Line,
+			checkPos && tkn1.Pos.Column != tkn2.Pos.Column,
+			checkPos && tkn1.Pos.Length != tkn2.Pos.Length:
 			return false
 		}
 	}

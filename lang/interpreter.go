@@ -14,13 +14,13 @@ type Interpreter struct {
 
 // typeErrorf formats the error string before passing into errorf() for panicking
 func (i *Interpreter) typeErrorf(format string, node Node, args ...interface{}) {
-	format = fmt.Sprintf("%s: TypeError - %s", node.Start().String(), format)
+	format = fmt.Sprintf("%s: TypeError - %s", node.Tkn().Pos.String(), format)
 	i.errorf(format, args...)
 }
 
 // zeroDivisionErrorf formats the error string before passing into errorf() for panicking
 func (i *Interpreter) zeroDivisionErrorf(format string, node Node, args ...interface{}) {
-	format = fmt.Sprintf("%s: ZeroDivisionError - %s", node.Start().String(), format)
+	format = fmt.Sprintf("%s: ZeroDivisionError - %s", node.Tkn().Pos.String(), format)
 	i.errorf(format, args...)
 }
 
@@ -67,7 +67,7 @@ func Interpret(rootNode Node) (interp *Interpreter, err error) {
 // interpret walks the tree from its root, exploring its children while making
 // its walk downwards
 func (i *Interpreter) interpret() {
-	res := i.Root.Accept(i)
+	res := i.Root.accept(i)
 	fmt.Printf("result is: %v of type %T\n", res, res)
 }
 
@@ -156,13 +156,13 @@ func (i *Interpreter) visitModAssignStmt(node *ModAssignStmt) WType { return nil
 // }
 
 func (i *Interpreter) visitBinExpr(node *BinExpr) WType {
-	lhs := node.left.Accept(i)
+	// lhs := node.left.Accept(i)
 
 	return WNull{}
 }
 
 func (i *Interpreter) visitUnExpr(node *UnExpr) WType {
-	lhs := node.operand.Accept(i)
+	// lhs := node.operand.Accept(i)
 
 	return WNull{}
 }
@@ -310,7 +310,7 @@ func (i *Interpreter) visitBool(n *Bool) WType { return WBool(n.Value) }
 func (i *Interpreter) visitList(n *List) WType {
 	wl := WList{}
 	for _, elNode := range n.elements {
-		wl = append(wl, elNode.Accept(i))
+		wl = append(wl, elNode.accept(i))
 	}
 	return wl
 }

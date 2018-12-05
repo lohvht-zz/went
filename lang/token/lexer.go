@@ -44,14 +44,14 @@ type Lexer struct {
 	tokens chan Token // channel of the scanned items
 
 	// current state to track & emit info
-	pos     int // current position
 	line    int // 1 + number of newlines seen
 	col     int // 1 + current column number
 	prevCol int // previous column number seen (ensure backup() is correct)
 
 	// Internal lexer state
 	start        int       // start position of the current token
-	width        int       // width of the last rune read from input
+	pos          int       // current position
+	runeWidth    int       // runeWidth of the last rune read from input
 	prevTokTyp   Type      // previous Token type used for automatic semicolon insertion
 	bracketStack runeStack // a stack of runes used to keep track of all '(', '[' and '{'
 }
@@ -86,12 +86,12 @@ func (rs *runeStack) peek() rune {
 // next increases newline count
 func (l *Lexer) next() rune {
 	if int(l.pos) >= len(l.Input) {
-		l.width = 0
+		l.runeWidth = 0
 		return eof
 	}
 	r, w := utf8.DecodeRuneInString(l.Input[l.pos:])
-	l.width = w
-	l.pos += l.width
+	l.runeWidth = w
+	l.pos += l.runeWidth
 	// handle columns and lines seen
 	if r == '\n' {
 		l.line++
@@ -112,10 +112,9 @@ func (l *Lexer) peek() rune {
 
 // backup steps back one rune, can only be called once per call of next
 func (l *Lexer) backup() {
-	l.pos -= l.width
+	l.pos -= l.runeWidth
 	l.col = l.prevCol
-	// handle columns and lines seen
-	if l.width == 1 && l.Input[l.pos] == '\n' {
+	if l.runeWidth == 1 && l.Input[l.pos] == '\n' {
 		l.line--
 	}
 }
@@ -126,7 +125,7 @@ func (l *Lexer) emit(typ Type) {
 	l.tokens <- Token{
 		typ,
 		l.Input[l.start:l.pos],
-		Position{l.Name, l.start, l.line, l.col},
+		Position{l.Name, l.line, l.col, l.col - l.prevCol},
 	}
 	l.start = l.pos
 	l.prevTokTyp = typ

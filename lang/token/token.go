@@ -9,9 +9,9 @@ import (
 // location
 type Position struct {
 	Name   string // name of the current input
-	Offset int    // offset from the start of the input string (start from 0)
 	Line   int    // line number, starts from 1
 	Column int    // column number, starts from 1
+	Length int    // length of token (how many characters)
 }
 
 // String returns a string in one of the following forms:
@@ -34,6 +34,10 @@ type Token struct {
 	Value string // value of this item
 	Pos   Position
 }
+
+// Tkn returns itself, to be used to provide a default implementation
+// for embedding in a node. Embedded in all Nodes
+func (tok Token) Tkn() Token { return tok }
 
 func (tok Token) String() string {
 	switch {
