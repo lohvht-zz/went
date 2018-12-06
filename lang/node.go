@@ -218,7 +218,8 @@ func (n *List) expr() {}
 func (n *ID) expr()   {}
 
 // newNumber creates a new pointer to the Num
-func newNumber(text string, tkn token.Token) (*Num, error) {
+func newNumber(tkn token.Token) (*Num, error) {
+	text := tkn.Value
 	n := &Num{Token: tkn, Text: text}
 	switch tkn.Type {
 	case token.FLOAT:
@@ -249,24 +250,20 @@ func newNumber(text string, tkn token.Token) (*Num, error) {
 }
 
 // newString creates a new pointer to the Str
-func newString(text string, tkn token.Token) *Str {
-	return &Str{Token: tkn, Value: text}
-}
+func newString(tkn token.Token) *Str { return &Str{Token: tkn, Value: tkn.Value} }
 
 // newNull creates a new pointer to the Null
-func newNull(text string, tkn token.Token) *Null {
-	return &Null{Token: tkn, Text: text}
-}
+func newNull(tkn token.Token) *Null { return &Null{Token: tkn, Text: tkn.Value} }
 
 // newBool creates a new pointer to the Bool
-func newBool(text string, tknTyp token.Type, tkn token.Token) (*Bool, error) {
-	switch tknTyp {
+func newBool(tkn token.Token) (*Bool, error) {
+	switch tkn.Type {
 	case token.TRUE:
-		return &Bool{Token: tkn, Value: true, Text: text}, nil
+		return &Bool{Token: tkn, Value: true, Text: tkn.Value}, nil
 	case token.FALSE:
-		return &Bool{Token: tkn, Value: false, Text: text}, nil
+		return &Bool{Token: tkn, Value: false, Text: tkn.Value}, nil
 	default:
-		return nil, fmt.Errorf("illegal bool syntax: %q", text)
+		return nil, fmt.Errorf("illegal bool syntax: %q", tkn.Value)
 	}
 }
 
@@ -274,6 +271,4 @@ func newList(elems []Expr, tkn token.Token) *List {
 	return &List{Token: tkn, elements: elems}
 }
 
-func newID(value string, tkn token.Token) *ID {
-	return &ID{Token: tkn, value: value}
-}
+func newID(tkn token.Token) *ID { return &ID{Token: tkn, value: tkn.Value} }

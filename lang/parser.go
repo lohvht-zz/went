@@ -292,46 +292,63 @@ TrailerLoop:
 	return n
 }
 
-// atom: "[" [exprList] "]" | "{" mapList "}" | "(" expr ")" | ID | NUM | STR |
-// RAWSTR | "null" | "false" | "true";
-// mapList: keyval ("," keyval)* [","];
-// keyval: (ID | STR) ":" expr;
+// atom: identifier | literal | enclosure;
 func (p *Parser) atom() Expr {
-	tkn := p.expectRange("atom type check", token.NAME, token.INT, token.FLOAT,
-		token.RAWSTR, token.STR, token.NULL, token.FALSE, token.TRUE,
-		token.LROUND, token.LSQUARE)
-	switch tkn.Type {
-	case token.NAME:
-		return newID(tkn.Value, tkn)
+	switch p.peek().Type {
+	case token.NAME: // identifier
+		return newID(p.next())
+	case token.RAWSTR, token.STR, token.INT, token.FLOAT, token.FALSE, token.TRUE, token.NULL:
+		return p.literal()
+	case token.LROUND, token.LSQUARE, token.LCURLY:
+		return p.enclosure()
+	default:
+		p.unexpected("atom", p.next())
+		return nil
+	}
+}
+
+// literal: string | rawstring | integer | float | "true" | "false" | "null";
+func (p *Parser) literal() Expr {
+	switch p.peek().Type {
 	case token.INT, token.FLOAT:
-		n, err := newNumber(tkn.Value, tkn)
+		n, err := newNumber(p.next())
 		if err != nil {
 			p.error(err)
 		}
 		return n
 	case token.RAWSTR, token.STR:
-		return newString(tkn.Value, tkn)
+		return newString(p.next())
 	case token.NULL:
-		return newNull(tkn.Value, tkn)
+		return newNull(p.next())
 	case token.FALSE, token.TRUE:
-		n, err := newBool(tkn.Value, tkn.Type, tkn)
+		n, err := newBool(p.next())
 		if err != nil {
 			p.error(err)
 		}
 		return n
-	case token.LROUND:
+	}
+	p.unexpected("literal", p.next())
+	return nil
+}
+
+// enclosure: parenthesis_form | arr_display | map_display;
+// parenthesis_form: "(" expression ")";
+// arr_display: "[" [expression_list] "]";
+// map_display: "{" key_datum_list "}";
+// key_datum_list: key_datum ("," key_datum)* [","];
+// key_datum: expression ":" expression;
+func (p *Parser) enclosure() Expr {
+	switch p.peek().Type {
+	case token.LROUND: // parenthesis_form
 		n := p.orEval()
 		p.expect("closing brackets, expected ')'", token.RROUND)
 		return n
-	case token.LSQUARE:
+	case token.LSQUARE: // arr_display
 		elements := p.exprList()
 		p.expect("closing square brackets, expected ']'", token.RSQUARE)
-		return newList(elements, tkn)
-	// case token.LeftCurly:
+		return newList(elements, p.next())
+		// case token.LCURLY:
 
-	default:
-		p.unexpected("atom", tkn)
-		return nil
 	}
 }
 
