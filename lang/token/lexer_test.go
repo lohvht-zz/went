@@ -216,9 +216,7 @@ func equal(tknLst1, tknLst2 []Token, checkPos bool) bool {
 		switch {
 		case tkn1.Type != tkn2.Type,
 			tkn1.Value != tkn2.Value && !(tkn1.Type == SEMICOLON && tkn2.Type == SEMICOLON),
-			checkPos && tkn1.Pos.Line != tkn2.Pos.Line,
-			checkPos && tkn1.Pos.Column != tkn2.Pos.Column,
-			checkPos && tkn1.Pos.Length != tkn2.Pos.Length:
+			checkPos && tkn1.Pos == tkn2.Pos:
 			return false
 		}
 	}

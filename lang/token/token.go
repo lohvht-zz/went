@@ -5,25 +5,39 @@ import (
 	"strconv"
 )
 
-// Position describes a source position, including the input's name, line, col
-// location
-type Position struct {
-	Name   string // name of the current input
-	Line   int    // line number, starts from 1
-	Column int    // column number, starts from 1
-	Length int    // length of token (how many characters)
+// Pos describes a source position via its line and col location, it is represented
+// by concatenating two 32-bit integers representing line and col.
+type Pos uint64
+
+func newPos(line uint32, col uint32) Pos {
+	return Pos(uint64(line)<<32 | uint64(col))
 }
 
-// String returns a string in one of the following forms:
-// 		file:line:column 	position if filename is set
-// 		line:column				position if filename is not set
-func (pos Position) String() string {
-	s := pos.Name
-	if s != "" {
-		s += ":"
+// decompose Pos into line and col
+func (p Pos) decompose() (line int, col int) {
+	line = int(p >> 32)
+	col = int(0xffffffff & p)
+	return
+}
+
+// String returns the string representation of the position line:col
+func (p Pos) String() string {
+	line, col := p.decompose()
+	return fmt.Sprintf("%d:%d", line, col)
+}
+
+// Pos helpers
+
+// AddOffset returns a new Pos by adding an offset to the col to a given Pos
+func AddOffset(p Pos, offset int) Pos {
+	line, newCol := p.decompose()
+	newCol = newCol + offset
+	if newCol < 0 {
+		// if the offset reduces the col value to less than zero, we set to zero
+		// NOTE: update if running into issues relating to debugging
+		newCol = 0
 	}
-	s += fmt.Sprintf("%d:%d", pos.Line, pos.Column)
-	return s
+	return newPos(uint32(line), uint32(newCol))
 }
 
 // Token represents a Token of the Went programming language
@@ -32,7 +46,7 @@ func (pos Position) String() string {
 type Token struct {
 	Type
 	Value string // value of this item
-	Pos   Position
+	Pos
 }
 
 // Tkn returns itself, to be used to provide a default implementation
@@ -78,10 +92,9 @@ const (
 
 	//Literal tokens (not including object, array)
 	NAME
-	INT    // Integer64
-	FLOAT  // float64 numbers
-	STR    // Singly quoted ('\'') strings, escaped using a single '\' char
-	RAWSTR // tilde quoted ('`') strings, intepreted as-is, with no way of escaping
+	INT   // Integer64
+	FLOAT // float64 numbers
+	STR   // Singly quoted ('\'') strings, escaped using a single '\' char
 
 	operatorStart
 	PLUS  // +
@@ -144,7 +157,6 @@ var tokenTypes = [...]string{
 	INT:         "INTEGER",
 	FLOAT:       "FLOAT",
 	STR:         "STRING",
-	RAWSTR:      "RAWSTRING",
 	PLUS:        "+",
 	MINUS:       "-",
 	DIV:         "/",

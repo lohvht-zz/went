@@ -297,7 +297,7 @@ func (p *Parser) atom() Expr {
 	switch p.peek().Type {
 	case token.NAME: // identifier
 		return newID(p.next())
-	case token.RAWSTR, token.STR, token.INT, token.FLOAT, token.FALSE, token.TRUE, token.NULL:
+	case token.STR, token.INT, token.FLOAT, token.FALSE, token.TRUE, token.NULL:
 		return p.literal()
 	case token.LROUND, token.LSQUARE, token.LCURLY:
 		return p.enclosure()
@@ -307,24 +307,11 @@ func (p *Parser) atom() Expr {
 	}
 }
 
-// literal: string | rawstring | integer | float | "true" | "false" | "null";
+// literal: string | integer | float | "true" | "false" | "null";
 func (p *Parser) literal() Expr {
 	switch p.peek().Type {
-	case token.INT, token.FLOAT:
-		n, err := newNumber(p.next())
-		if err != nil {
-			p.error(err)
-		}
-		return n
-	case token.RAWSTR, token.STR:
-		return newString(p.next())
-	case token.NULL:
-		return newNull(p.next())
-	case token.FALSE, token.TRUE:
-		n, err := newBool(p.next())
-		if err != nil {
-			p.error(err)
-		}
+	case token.STR, token.INT, token.FLOAT, token.FALSE, token.TRUE, token.NULL:
+		n := newBasicLit(p.next())
 		return n
 	}
 	p.unexpected("literal", p.next())
@@ -340,16 +327,20 @@ func (p *Parser) literal() Expr {
 func (p *Parser) enclosure() Expr {
 	switch p.peek().Type {
 	case token.LROUND: // parenthesis_form
+		p.next() // consume left bracket
 		n := p.orEval()
 		p.expect("closing brackets, expected ')'", token.RROUND)
 		return n
 	case token.LSQUARE: // arr_display
+		leftSquare := p.next()
 		elements := p.exprList()
-		p.expect("closing square brackets, expected ']'", token.RSQUARE)
-		return newList(elements, p.next())
+		rightSquare := p.expect("closing square brackets, expected ']'", token.RSQUARE)
+		return newList(elements, leftSquare, rightSquare)
 		// case token.LCURLY:
 
 	}
+	p.unexpected("enclosure", p.next())
+	return nil
 }
 
 // exprList: orEval ("," orEval)* [","];

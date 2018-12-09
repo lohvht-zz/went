@@ -14,13 +14,13 @@ type Interpreter struct {
 
 // typeErrorf formats the error string before passing into errorf() for panicking
 func (i *Interpreter) typeErrorf(format string, node Node, args ...interface{}) {
-	format = fmt.Sprintf("%s: TypeError - %s", node.Tkn().Pos.String(), format)
+	format = fmt.Sprintf("%s: TypeError - %s", node.Pos().String(), format)
 	i.errorf(format, args...)
 }
 
 // zeroDivisionErrorf formats the error string before passing into errorf() for panicking
 func (i *Interpreter) zeroDivisionErrorf(format string, node Node, args ...interface{}) {
-	format = fmt.Sprintf("%s: ZeroDivisionError - %s", node.Tkn().Pos.String(), format)
+	format = fmt.Sprintf("%s: ZeroDivisionError - %s", node.Pos().String(), format)
 	i.errorf(format, args...)
 }
 
@@ -302,10 +302,10 @@ func (i *Interpreter) visitUnExpr(node *UnExpr) WType {
 // visit literals ==> At its core, these will return WType values
 
 // TODO: visit literals for maps
-func (i *Interpreter) visitNum(n *Num) WType   { return WNum(n.Float64) }
-func (i *Interpreter) visitStr(n *Str) WType   { return WString(n.String()) }
-func (i *Interpreter) visitNull(n *Null) WType { return WNull{} }
-func (i *Interpreter) visitBool(n *Bool) WType { return WBool(n.Value) }
+// func (i *Interpreter) visitNum(n *Num) WType   { return WNum(n.Float64) }
+// func (i *Interpreter) visitStr(n *Str) WType   { return WString(n.String()) }
+// func (i *Interpreter) visitNull(n *Null) WType { return WNull{} }
+func (i *Interpreter) visitBasicLit(n *BasicLit) WType { return WNull{} }
 
 func (i *Interpreter) visitList(n *List) WType {
 	wl := WList{}
@@ -315,4 +315,4 @@ func (i *Interpreter) visitList(n *List) WType {
 	return wl
 }
 
-func (i *Interpreter) visitID(n *ID) WType { return WString(n.String()) }
+func (i *Interpreter) visitID(n *Ident) WType { return WString(n.String()) }

@@ -18,8 +18,8 @@ func Tokenise(name, input string) *Lexer {
 		Input:   input,
 		tokens:  make(chan Token),
 		line:    1,
-		col:     1,
-		prevCol: 1,
+		col:     0,
+		prevCol: 0,
 	}
 	go l.run()
 	return l
@@ -44,9 +44,9 @@ type Lexer struct {
 	tokens chan Token // channel of the scanned items
 
 	// current state to track & emit info
-	line    int // 1 + number of newlines seen
-	col     int // 1 + current column number
-	prevCol int // previous column number seen (ensure backup() is correct)
+	line    uint32 // 1 + number of newlines seen
+	col     uint32 // 1 + current column number
+	prevCol uint32 // previous column number seen (ensure backup() is correct)
 
 	// Internal lexer state
 	start        int       // start position of the current token
@@ -125,7 +125,7 @@ func (l *Lexer) emit(typ Type) {
 	l.tokens <- Token{
 		typ,
 		l.Input[l.start:l.pos],
-		Position{l.Name, l.line, l.col, l.col - l.prevCol},
+		newPos(l.line, l.col),
 	}
 	l.start = l.pos
 	l.prevTokTyp = typ
@@ -156,7 +156,7 @@ func (l *Lexer) errorf(format string, args ...interface{}) stateFunc {
 	l.tokens <- Token{
 		ERROR,
 		fmt.Sprintf(format, args...),
-		Position{l.Name, l.start, l.line, l.col},
+		newPos(l.line, l.col),
 	}
 	return nil
 }
@@ -322,7 +322,7 @@ Loop:
 		}
 	}
 	switch l.prevTokTyp {
-	case NAME, RAWSTR, STR, FALSE,
+	case NAME, STR, FALSE,
 		TRUE, INT, FLOAT, BREAK, CONT, RETURN,
 		RROUND, RSQUARE, RCURLY:
 		l.emit(SEMICOLON)
@@ -372,7 +372,7 @@ Loop:
 			break Loop
 		}
 	}
-	l.emit(RAWSTR)
+	l.emit(STR)
 	l.next()
 	l.ignore() // now consume and ignore the closing quote
 	return lexCode
