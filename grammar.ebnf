@@ -28,8 +28,8 @@ for_statement: "for" target_list "in" expression "{" suite "}"
 funcdef: "func" funcname "(" [parameter_list] ")" [":" integer] "{" suite "}";
 parameter_list: defparameter ("," defparameter)*;
 defparameter: parameter ["=" expression];
-parameter: identifier [":" expression];
-funcname: identifier;
+parameter: ident [":" expression];
+funcname: ident;
 suite: statement_list | NEWLINE statement+;
 
 statement: statement_list NEWLINE | compound_statement;
@@ -47,7 +47,7 @@ expression_statement: expression;
 
 assignment_statement: (target_list "=")+ expression;
 target_list: target ("," target)*;
-target: identifier | propertyref | index | slicing;
+target: ident | propertyref | index | slicing;
 
 aug_assignment_statement: target augop expression;
 augop: "+=" | "-=" | "/=" | "*=" | "%=";
@@ -57,64 +57,34 @@ break_statement: "break";
 continue_statement: "continue";
 
 (* Expressions and Literals  *)
-expression_list: expression ("," expression)* [","];
 
-primary: atom | propertyref | index | slicing | call;
-propertyref: primary "." identifier;
-index: primary "[" expression "]";
+IfExpr: Expr ("if" Expr "else" IfExpr)?;
 
-slicing: primary "[" slice_list "]";
-slice_list: [expression] ":" [expression];
+Expr: NotExpr (("||" | "&&") NotExpr)*;
+NotExpr: "!" NotExpr | ComparisonExpr;
+ComparisonExpr: AddExpr (comparison_op AddExpr)*;
+comparison_op: "==" | "!=" | "<" | ">" | "<=" | ">=" | ["!"] "in"
 
-call: primary "(" [argument_list] ")";
-argument_list: positional_arguments ["," named_arguments];
-positional_arguments: expression ("," expression)*;
-named_arguments: named_arg_item ("," named_arg_item)*;
-named_arg_item: identifier "=" expression;
+AddExpr: MultExpr (add_op MultExpr)*;
+MultExpr: UnExpr (mul_op UnExpr)*;
+UnExpr: ("+" | "-") UnExpr | PrimaryExpr;
+add_op: "+" | "-";
+mul_op: "*" | "/" | "%";
 
-(* 
-  x =
-    if <expr> { <expr> }
-    else { <expr> }
+PrimaryExpr: Operand | PrimaryExpr Selector | PrimaryExpr Index | PrimaryExpr Slice | PrimaryExpr Args;
+Selector: "." Name;
+Index: "[" Expr "]";
+Slice: "[ Expr? ":" Expr? (":" Expr?)? "]";
+Args: "(" (Expr ("," Expr)* ","?)? ")";
 
- *)
-
-expression: if_statement | simple_expression;
-(* TODO: Make sure that the any <expression> rule used above for compound statements
- are simple_expressions instead of expressions
- *)
-if_expr: "if" expression ":" expression ";"
-  ("elif" expression: expression ";")
-  ["else" expression: expression ";"];
-simple_expression: or_test;
-
-or_test: and_test | or_test "||" and_test;
-and_test: not_test | and_test "&&" not_test;
-not_test: comparison | "!" not_test;
-
-comparison: a_expr ( comp_operator a_expr )*;
-comp_operator: "<" | ">" | "==" | ">=" | "<=" | "!="
-  ["not"] "in";
-
-m_expr: u_expr
-  | m_expr "*" u_expr
-  | m_expr "/" u_expr
-  | m_expr "%" u_expr;
-a_expr: m_expr | a_expr "+" m_expr | a_expr "-" m_expr;
-u_expr: primary | "-" u_expr | "+" u_expr;
-
-atom: identifier | literal | enclosure;
-enclosure: parenthesis_form | arr_display | map_display;
-
-// literal: string | rawstring | integer | float | "true" | "false" | "null";
-
-parenthesis_form: "(" expression ")";
-
-arr_display: "[" [expression_list] "]";
-
-map_display: "{" key_datum_list "}";
-key_datum_list: key_datum ("," key_datum)* [","];
-key_datum: expression ":" expression;
+Operand: Literal | Name | "(" Expr ")";
+Literal: BasicLit | CompositeLit; // NOTE: FuncLit support in the future?
+BasicLit: INT | FLOAT | STR | "true" | "false" | "null"; // NOTE: imaginary support in the future?
+CompositeLit: Array | Dict;
+Array: "[" (Expr ("," Expr)* ","?)? "]";
+Dict: "{" (DictEl ("," DictEl)* ","?)? "}";
+DictEl: Key ":" Expr | Name;
+Key: Name | str;
 
 NEWLINE: "\n" | "\r\n";
 EOF: "EOF";

@@ -315,4 +315,6 @@ func (i *Interpreter) visitList(n *List) WType {
 	return wl
 }
 
+func (i *Interpreter) visitDict(n *Dict) WType { return WNull{} }
+
 func (i *Interpreter) visitID(n *Ident) WType { return WString(n.String()) }

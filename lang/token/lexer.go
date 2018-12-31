@@ -150,8 +150,10 @@ func (l *Lexer) acceptRun(valid string) {
 	l.backup()
 }
 
-// errorf emits an error Token and terminates the scan by passing back a nil
-// pointer that will be the next state, terminating l.nextToken.
+// errorf emits an error Token; if returned from a stateFunc (return nil)
+// errorf will terminate lexing
+// TODO: Make it such that lexical analysis is not terminated when error is reached
+// to improve usability (EXTENSION WITH ERRORLISTS)
 func (l *Lexer) errorf(format string, args ...interface{}) stateFunc {
 	l.tokens <- Token{
 		ERROR,
@@ -213,7 +215,7 @@ func init() {
 			if l.next() == '|' {
 				l.emit(LOGICALOR)
 			} else {
-				l.errorf("expected Token %#U", r)
+				return l.errorf("expected Token %#U", r)
 			}
 			return lexCode
 		},
@@ -222,7 +224,7 @@ func init() {
 			if l.next() == '&' {
 				l.emit(LOGICALAND)
 			} else {
-				l.errorf("expected Token %#U", r)
+				return l.errorf("expected Token %#U", r)
 			}
 			return lexCode
 		},
@@ -296,9 +298,9 @@ func lexEOF(l *Lexer) stateFunc {
 // lexSpace scans a run of space characters, One space has already been seen
 // Ignore spaces seen
 func lexSpace(l *Lexer) stateFunc {
-	for isSpace(l.peek()) {
-		l.next()
+	for isSpace(l.next()) {
 	}
+	l.backup()
 	l.ignore()
 	return lexCode
 }
@@ -306,7 +308,7 @@ func lexSpace(l *Lexer) stateFunc {
 // lexNewline scans for a run of newline chars ('\n')
 // This method also does the automatic semicolon insertions (ASI rule 1) with
 // the following rules for newlines:
-// 1. the Token is an identifier, or string/boolean/number literal
+// 1. the Token is an identifier, or string/number literal
 // 2. the Token is a `break`, `return` or `continue`
 // 3. Token closes a round, square, or curly bracket (')', ']', '}')
 func lexNewline(l *Lexer) stateFunc {
@@ -315,15 +317,17 @@ Loop:
 	for {
 		switch r := l.next(); {
 		case r == '\n':
-			// Absorb and go to next iteration
+			l.ignore() // advance head of the lexer, go to next iteration
+			// We do this ignore bit here so that whenever we emit a semicolon,
+			// the string literal emitted will be condensed to a single \n
 		default:
 			l.backup()
 			break Loop
 		}
 	}
 	switch l.prevTokTyp {
-	case NAME, STR, FALSE,
-		TRUE, INT, FLOAT, BREAK, CONT, RETURN,
+	case NAME, STR, INT, FLOAT,
+		BREAK, CONT, RETURN,
 		RROUND, RSQUARE, RCURLY:
 		l.emit(SEMICOLON)
 	default:
@@ -461,7 +465,8 @@ func lexNumber(l *Lexer) stateFunc {
 		goto FRACTION
 	}
 	// Leading 0 ==> hexadecimal ("0x"/"0X") or octal 0
-	if l.peek() == '0' {
+	// if l.peek() == '0' {
+	if l.accept("0") {
 		if l.accept("xX") {
 			// hexadecimal int
 			l.scanSignificand(16)
@@ -490,6 +495,11 @@ func lexNumber(l *Lexer) stateFunc {
 FRACTION: // handles all other floating point lexing
 	if l.accept(".") {
 		emitTyp = FLOAT
+		if r := l.peek(); !(r >= '0' && r <= '9') {
+			// NOTE: we prohibit trailing decimal points with no numbers as we would
+			// eventually support method overloading for numbers etc.
+			return l.errorf("Illegal trailing decimal point after number")
+		}
 		l.scanSignificand(10)
 	}
 	if l.accept("eE") {
@@ -594,13 +604,9 @@ func lexMultilineComment(l *Lexer) stateFunc {
 
 // Utility Functions
 
-func isSpace(r rune) bool {
-	return r == ' ' || r == '\t' || r == '\r'
-}
+func isSpace(r rune) bool { return r == ' ' || r == '\t' || r == '\r' }
 
-func isEndOfLine(r rune) bool {
-	return r == '\n'
-}
+func isEndOfLine(r rune) bool { return r == '\n' }
 
 func isAlphaNumeric(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)

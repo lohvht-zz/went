@@ -158,21 +158,31 @@ func newUnExpr(operand Expr, op token.Token) *UnExpr {
 // }
 
 // Literals
+// TODO: remove all references to token.FALSE, token.TRUE, token.NULL
 type (
 	// BasicLit node represents a literal of basic type
 	BasicLit struct {
-		token.Token // token.INT, token.FLOAT, token.STR, token.BOOL, token.NULL
+		token.Token // token.INT, token.FLOAT, token.STR
 		Scope
 		Text string
 	}
 
 	// List holds a list of literal nodes
 	List struct {
-		LSqPos token.Pos // the position of the opening square bracket "["
-		RSqPos token.Pos // the position of the closing square bracket "]"
+		LPos token.Pos // the position of the opening square bracket "["
+		RPos token.Pos // the position of the closing square bracket "]"
 		Scope
 		elements []Expr
 	}
+
+	// Dict holds key-value pairs of nodes
+	Dict struct {
+		LPos token.Pos // the position of the opening curly bracket "{"
+		RPos token.Pos // the position of the closing curly bracket "}"
+		Scope
+		elements []Expr
+	}
+
 	// Ident node represents Identifier/Name nodes
 	Ident struct {
 		token.Token
@@ -183,18 +193,22 @@ type (
 
 func (n *BasicLit) accept(nw NodeWalker) WType { return nw.visitBasicLit(n) }
 func (n *List) accept(nw NodeWalker) WType     { return nw.visitList(n) }
+func (n *Dict) accept(nw NodeWalker) WType     { return nw.visitDict(n) }
 func (n *Ident) accept(nw NodeWalker) WType    { return nw.visitID(n) }
 
 func (n *BasicLit) Pos() token.Pos { return n.Token.Pos }
-func (n *List) Pos() token.Pos     { return n.LSqPos }
+func (n *List) Pos() token.Pos     { return n.LPos }
+func (n *Dict) Pos() token.Pos     { return n.RPos }
 func (n *Ident) Pos() token.Pos    { return n.Token.Pos }
 
 func (n *BasicLit) End() token.Pos { return token.AddOffset(n.Token.Pos, len(n.Text)) }
-func (n *List) End() token.Pos     { return n.RSqPos }
+func (n *List) End() token.Pos     { return n.RPos }
+func (n *Dict) End() token.Pos     { return n.RPos }
 func (n *Ident) End() token.Pos    { return token.AddOffset(n.Token.Pos, len(n.Name)) }
 
 func (n *BasicLit) expr() {}
 func (n *List) expr()     {}
+func (n *Dict) expr()     {}
 func (n *Ident) expr()    {}
 
 func newBasicLit(tkn token.Token) *BasicLit {
@@ -202,7 +216,11 @@ func newBasicLit(tkn token.Token) *BasicLit {
 }
 
 func newList(elems []Expr, leftSquare, rightSquare token.Token) *List {
-	return &List{elements: elems, LSqPos: leftSquare.Pos, RSqPos: rightSquare.Pos}
+	return &List{elements: elems, LPos: leftSquare.Pos, RPos: rightSquare.Pos}
+}
+
+func newDict(elements []Expr, leftCurly, rightCurly token.Token) *Dict {
+	return &Dict{elements: elements, LPos: leftCurly.Pos, RPos: rightCurly.Pos}
 }
 
 func newID(tkn token.Token) *Ident { return &Ident{Token: tkn, Name: tkn.Value} }

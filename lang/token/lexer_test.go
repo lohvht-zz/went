@@ -52,6 +52,9 @@ var (
 	tknAnd    = makeToken(LOGICALAND, tokenTypes[LOGICALAND])
 
 	// keywords
+	tknClass   = makeToken(CLASS, tokenTypes[CLASS])
+	tknSuper   = makeToken(SUPER, tokenTypes[SUPER])
+	tknSelf    = makeToken(SELF, tokenTypes[SELF])
 	tknFuncDef = makeToken(FUNC, tokenTypes[FUNC])
 	tknIf      = makeToken(IF, tokenTypes[IF])
 	tknElse    = makeToken(ELSE, tokenTypes[ELSE])
@@ -109,9 +112,10 @@ var lexTests = []lexTestcase{
 		},
 	},
 	{"keywords",
-		"func if else elif for null false true while return break continue in var",
+		"func if else elif for null false true while return break continue in var class super self",
 		[]Token{tknFuncDef, tknIf, tknElse, tknElseIf, tknFor, tknNull, tknF, tknT,
-			tknWhile, tknReturn, tknBreak, tknCont, tknIn, tknVar, tknEOF,
+			tknWhile, tknReturn, tknBreak, tknCont, tknIn, tknVar, tknClass, tknSuper,
+			tknSelf, tknEOF,
 		},
 	},
 	{"arithmetic operators",
@@ -133,6 +137,13 @@ var lexTests = []lexTestcase{
 		[]Token{makeName("x"), tknDot, makeName("y"), tknDot, makeName("z"), tknPlus,
 			makeName("n"), tknDot, makeName("q"), tknDot, makeName("w"),
 			tknLR, tknRR, tknEOF,
+		},
+	},
+	{"numbers (int, float, hexadecimal, octals)",
+		"123 .345 1.234 0x1237A 012374",
+		[]Token{makeToken(INT, "123"), makeToken(FLOAT, ".345"),
+			makeToken(FLOAT, "1.234"), makeToken(INT, "0x1237A"),
+			makeToken(INT, "012374"), tknEOF,
 		},
 	},
 	// Error Test Cases

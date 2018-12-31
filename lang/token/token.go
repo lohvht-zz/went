@@ -123,6 +123,9 @@ const (
 	operatorEnd
 
 	keywordBegin
+	CLASS  // class keyword
+	SUPER  // super keyword
+	SELF   // self keyword
 	FUNC   // func keyword for function definition
 	IF     // if keyword
 	ELSE   // else keyword
@@ -177,6 +180,9 @@ var tokenTypes = [...]string{
 	LOGICALNOT:  "!",
 	LOGICALOR:   "||",
 	LOGICALAND:  "&&",
+	CLASS:       "class",
+	SUPER:       "super",
+	SELF:        "self",
 	FUNC:        "func",
 	IF:          "if",
 	ELSE:        "else",

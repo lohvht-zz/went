@@ -85,6 +85,23 @@ func (p *Parser) unexpected(context string, tkn token.Token) {
 	p.errorf("unexpected %s in %s", tkn, context)
 }
 
+// nextComma checks if the parser's next token is a comma
+func (p *Parser) nextComma(context string, followTyp token.Type) bool {
+	typ := p.peek().Type
+	if typ == token.COMMA {
+		return true
+	}
+	if typ != followTyp {
+		msg := "missing comma ','"
+		if typ == token.SEMICOLON && p.peek().Value == "\n" {
+			msg += " before newline"
+		}
+		p.errorf(msg + " in " + context)
+		return true
+	}
+	return false
+}
+
 // recover is the handler that turns panics into returns from the top level
 // of Parse
 func (p *Parser) recover(errp *error) {
@@ -120,11 +137,11 @@ func Parse(name, input string) (parser *Parser, err error) {
 }
 
 func (p *Parser) parse() {
-	p.Root = p.orEval()
-	if p.peek().Type == token.SEMICOLON {
-		p.next() // just consume the semicolon for now
-	}
-	p.expect("End of File", token.EOF)
+	// p.Root = p.orEval()
+	// if p.peek().Type == token.SEMICOLON {
+	// 	p.next() // just consume the semicolon for now
+	// }
+	// p.expect("End of File", token.EOF)
 }
 
 // Grammar rules
@@ -177,49 +194,38 @@ func (p *Parser) parse() {
 
 // }
 
-// orEval: andEval ("||" orEval)*;
-func (p *Parser) orEval() Expr {
-	node := p.andEval()
-	for p.peek().Type == token.LOGICALOR {
+// Expr : NotExpr (("||" | "&&") NotExpr)*;
+func (p *Parser) parseExpr() Expr {
+	node := p.parseNotExpr()
+	for p.peek().Type == token.LOGICALOR || p.peek().Type == token.LOGICALAND {
 		tkn := p.next()
-		node = newBinExpr(node, p.andEval(), tkn)
+		node = newBinExpr(node, p.parseNotExpr(), tkn)
 	}
 	return node
 }
 
-// andEval: notEval ("&&" notEval)*;
-func (p *Parser) andEval() Expr {
-	node := p.notEval()
-	for p.peek().Type == token.LOGICALAND {
-		tkn := p.next()
-		node = newBinExpr(node, p.andEval(), tkn)
-	}
-	return node
-}
-
-// notEval: "!" notEval | comparison;
-func (p *Parser) notEval() Expr {
+// NotExpr : "!" NotExpr | ComparisonExpr;
+func (p *Parser) parseNotExpr() Expr {
 	switch p.peek().Type {
 	case token.LOGICALNOT:
 		tkn := p.next()
-		return newUnExpr(p.notEval(), tkn)
+		return newUnExpr(p.parseNotExpr(), tkn)
 	default:
-		return p.comparison()
+		return p.parseComparisonExpr()
 	}
 }
 
-// comparison: smExpr (compOp smExpr)*;
-// compOp: compOp: "==" | "!=" | "<" | ">" | "<=" | ">=" | ["!"] "in";
-func (p *Parser) comparison() Expr {
-	node := p.smExpr()
+// ComparisonExpr : AddExpr (compOp AddExpr)*;
+// comparison_op: "==" | "!=" | "<" | ">" | "<=" | ">=" | ["!"] "in";
+func (p *Parser) parseComparisonExpr() Expr {
+	node := p.parseAddExpr()
 Loop:
 	for {
 		switch p.peek().Type {
-		case token.EQ, token.NEQ,
-			token.SM, token.SMEQ,
+		case token.EQ, token.NEQ, token.SM, token.SMEQ,
 			token.GR, token.GREQ, token.IN:
 			tkn := p.next()
-			node = newBinExpr(node, p.smExpr(), tkn)
+			node = newBinExpr(node, p.parseAddExpr(), tkn)
 		default:
 			break Loop
 		}
@@ -227,15 +233,15 @@ Loop:
 	return node
 }
 
-// smExpr: term (("+" | "-") term)*;
-func (p *Parser) smExpr() Expr {
-	node := p.term()
+// AddExpr : MultExpr (("+" | "-") MultExpr)*;
+func (p *Parser) parseAddExpr() Expr {
+	node := p.parseMultExpr()
 Loop:
 	for {
 		switch p.peek().Type {
 		case token.PLUS, token.MINUS:
 			tkn := p.next()
-			node = newBinExpr(node, p.term(), tkn)
+			node = newBinExpr(node, p.parseMultExpr(), tkn)
 		default:
 			break Loop
 		}
@@ -243,15 +249,15 @@ Loop:
 	return node
 }
 
-// term: factor (("*" | "/" | "%") factor)*;
-func (p *Parser) term() Expr {
-	node := p.factor()
+// MultExpr : UnExpr (("*" | "/" | "%") UnExpr)*;
+func (p *Parser) parseMultExpr() Expr {
+	node := p.parseUnExpr()
 Loop:
 	for {
 		switch p.peek().Type {
 		case token.MULT, token.DIV, token.MOD:
 			tkn := p.next()
-			node = newBinExpr(node, p.factor(), tkn)
+			node = newBinExpr(node, p.parseUnExpr(), tkn)
 		default:
 			break Loop
 		}
@@ -259,99 +265,84 @@ Loop:
 	return node
 }
 
-// factor: ("+" | "-") factor | atom;
-func (p *Parser) factor() Expr {
+// UnExpr : ("+" | "-") UnExpr | PrimaryExpr;
+func (p *Parser) parseUnExpr() Expr {
 	switch p.peek().Type {
 	case token.PLUS, token.MINUS:
 		tkn := p.next()
-		return newUnExpr(p.factor(), tkn)
+		return newUnExpr(p.parseUnExpr(), tkn)
 	default:
-		return p.atom()
+		return p.parsePrimaryExpr()
 	}
 }
 
-// TODO: Implement me!
-// atomExpr: atom trailer*;
-// trailer: "(" [argList] ")" | "[" slice "]" | "." NAME;
-// slice: orEval | [orEval] ":" [orEval] [":" [orEval]];
-// argList: arg ("," arg)* [","];
-// arg: orEval | NAME "=" orEval;
-func (p *Parser) atomExpr() Expr {
-	n := p.atom()
-TrailerLoop:
-	for {
-		switch p.peek().Type {
-		case token.DOT:
-		case token.LROUND:
-		case token.LSQUARE:
-
-		default:
-			break TrailerLoop
-		}
-	}
-	return n
-}
-
-// atom: identifier | literal | enclosure;
-func (p *Parser) atom() Expr {
-	switch p.peek().Type {
-	case token.NAME: // identifier
-		return newID(p.next())
-	case token.STR, token.INT, token.FLOAT, token.FALSE, token.TRUE, token.NULL:
-		return p.literal()
-	case token.LROUND, token.LSQUARE, token.LCURLY:
-		return p.enclosure()
-	default:
-		p.unexpected("atom", p.next())
-		return nil
-	}
-}
-
-// literal: string | integer | float | "true" | "false" | "null";
-func (p *Parser) literal() Expr {
-	switch p.peek().Type {
-	case token.STR, token.INT, token.FLOAT, token.FALSE, token.TRUE, token.NULL:
-		n := newBasicLit(p.next())
-		return n
-	}
-	p.unexpected("literal", p.next())
+// PrimaryExpr : Operand (Selector | Index | Slice | Args)*;
+// Selector: "." Name;
+// Index: "[" Expr "]";
+// Slice: "[ [Expr] ":" [Expr] [":" [Expr]] "]";
+// Args: "(" [Expr ("," Expr)* [","]] ")";
+func (p *Parser) parsePrimaryExpr() Expr {
 	return nil
 }
 
-// enclosure: parenthesis_form | arr_display | map_display;
-// parenthesis_form: "(" expression ")";
-// arr_display: "[" [expression_list] "]";
-// map_display: "{" key_datum_list "}";
-// key_datum_list: key_datum ("," key_datum)* [","];
-// key_datum: expression ":" expression;
-func (p *Parser) enclosure() Expr {
+// Operand : Literal | Name | "(" Expr ")";
+// Literal: BasicLit | CompositeLit; // NOTE: FuncLit support in the future?
+// BasicLit: int | float | str; // NOTE: imaginary support in the future?
+// CompositeLit: Array | Dict;
+func (p *Parser) parseOperand() Expr {
 	switch p.peek().Type {
-	case token.LROUND: // parenthesis_form
-		p.next() // consume left bracket
-		n := p.orEval()
-		p.expect("closing brackets, expected ')'", token.RROUND)
+	case token.INT, token.FLOAT, token.STR: // BasicLit
+		return newBasicLit(p.next())
+	case token.LROUND:
+		p.next() // consume
+		n := p.parseExpr()
+		p.expect("Operand", token.RROUND)
 		return n
-	case token.LSQUARE: // arr_display
-		leftSquare := p.next()
-		elements := p.exprList()
-		rightSquare := p.expect("closing square brackets, expected ']'", token.RSQUARE)
-		return newList(elements, leftSquare, rightSquare)
-		// case token.LCURLY:
+	case token.LSQUARE: // Array
+		return p.parseArray()
+	case token.LCURLY: // Dict
+		return p.parseDict()
 
 	}
-	p.unexpected("enclosure", p.next())
 	return nil
 }
 
-// exprList: orEval ("," orEval)* [","];
-func (p *Parser) exprList() []Expr {
-	elements := []Expr{p.orEval()}
-	for p.peek().Type == token.COMMA {
-		p.next() // consume the comma token
-		// if the following token isn't ']' handles dangling commas as well
-		if p.peek().Type != token.RSQUARE {
-			elements = append(elements, p.orEval())
+// Array : "[" [Expr ("," Expr)* [","]] "]";
+func (p *Parser) parseArray() Expr {
+	lsquare := p.expect("Array", token.LSQUARE)
+	var elements []Expr
+	if p.peek().Type != token.RSQUARE {
+		for p.peek().Type != token.RSQUARE && p.peek().Type != token.EOF {
+			elements = append(elements, p.parseExpr())
+			if !p.nextComma("Array", token.RSQUARE) {
+				break
+			}
+			p.next() // consume the comma
 		}
 	}
-	return elements
+	rsquare := p.expect("Array", token.RSQUARE)
+	return newList(elements, lsquare, rsquare)
+}
+
+// Dict: "{" [DictEl ("," DictEl)* [","]] "}";
+// DictEl: Key ":" Expr | Name;
+// Key: Name | str;
+func (p *Parser) parseDict() Expr {
+	lcurly := p.expect("Dictionary", token.LCURLY)
+	var elements []Expr
+	if p.peek().Type != token.RCURLY {
+		for p.peek().Type != token.RSQUARE && p.peek().Type != token.EOF {
+			elements = append(elements, p.parseDictEl())
+			if !p.nextComma("Dictionary", token.RCURLY) {
+				break
+			}
+			p.next()
+		}
+	}
+	rcurly := p.expect("Dictionary", token.RCURLY)
+	return newDict(elements, lcurly, rcurly)
+}
+
+func (p *Parser) parseDictEl() Expr {
+	return nil
 }

@@ -44,5 +44,6 @@ type NodeWalker interface {
 
 	visitBasicLit(*BasicLit) WType
 	visitList(*List) WType
+	visitDict(n *Dict) WType
 	visitID(*Ident) WType
 }
