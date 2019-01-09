@@ -58,18 +58,19 @@ continue_statement: "continue";
 
 (* Expressions and Literals  *)
 
-IfExpr: Expr ("if" Expr "else" IfExpr)?;
+IfExpr: OrAndExpr ("if" OrAndExpr "else" IfExpr)?;
 
-Expr: NotExpr (("||" | "&&") NotExpr)*;
+OrAndExpr: NotExpr (("||" | "&&") NotExpr)*;
 NotExpr: "!" NotExpr | ComparisonExpr;
+
+=======
+
 ComparisonExpr: AddExpr (comparison_op AddExpr)*;
 comparison_op: "==" | "!=" | "<" | ">" | "<=" | ">=" | ["!"] "in"
 
-AddExpr: MultExpr (add_op MultExpr)*;
-MultExpr: UnExpr (mul_op UnExpr)*;
+AddExpr: MultExpr (("+" | "-") MultExpr)*;
+MultExpr: UnExpr (("*" | "/" | "%") UnExpr)*;
 UnExpr: ("+" | "-") UnExpr | PrimaryExpr;
-add_op: "+" | "-";
-mul_op: "*" | "/" | "%";
 
 PrimaryExpr: Operand | PrimaryExpr Selector | PrimaryExpr Index | PrimaryExpr Slice | PrimaryExpr Args;
 Selector: "." Name;
@@ -88,3 +89,12 @@ Key: Name | str;
 
 NEWLINE: "\n" | "\r\n";
 EOF: "EOF";
+
+// OPERATOR PRECEDENCES
+// 5 * / %
+// 4 + -
+// 3 == != < <= > >=
+// 2 &&
+// 1 ||
+// 
+// 

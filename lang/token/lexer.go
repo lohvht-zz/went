@@ -11,37 +11,23 @@ import (
 // https://golang.org/src/text/template/parse/lex.go and partially taken from
 // https://golang.org/src/go/scanner/scanner.go
 
-// Tokenise creates a new scanner for the input string
-func Tokenise(name, input string) *Lexer {
+// NewLexer creates a new lexer for the input string
+func NewLexer(name, input string) *Lexer {
 	l := &Lexer{
 		Name:    name,
 		Input:   input,
-		tokens:  make(chan Token),
 		line:    1,
 		col:     0,
 		prevCol: 0,
 	}
-	go l.run()
 	return l
-}
-
-// Next returns the next Token from the input
-// called by the parser, not in the lexing goroutine
-func (l *Lexer) Next() Token { return <-l.tokens }
-
-// Drain drains the output so that the lexing goroutine will exit
-// Called by the parser, not in lexing goroutine
-func (l *Lexer) Drain() {
-	for range l.tokens {
-	}
 }
 
 // Lexer scans the entire input string and tokenises it, storing the tokens in
 // a channel of Tokens
 type Lexer struct {
-	Name   string     // name of the input; used only for error reporting
-	Input  string     // string being scanned
-	tokens chan Token // channel of the scanned items
+	Name  string // name of the input; used only for error reporting
+	Input string // string being scanned
 
 	// current state to track & emit info
 	line    uint32 // 1 + number of newlines seen
@@ -60,14 +46,10 @@ const eof = -1
 
 type runeStack []rune
 
-func (rs *runeStack) empty() bool {
-	return len(*rs) == 0
-}
+func (rs *runeStack) empty() bool { return len(*rs) == 0 }
 
 // push a rune to the top of the stack
-func (rs *runeStack) push(r rune) {
-	*rs = append(*rs, r)
-}
+func (rs *runeStack) push(r rune) { *rs = append(*rs, r) }
 
 // pop removes a rune from the top of the stack, you should always check if
 // the stack is empty prior to popping
@@ -78,9 +60,7 @@ func (rs *runeStack) pop() (r rune) {
 
 // peek looks at the top of the stack you should always check if the stack is
 // empty prior to peeking
-func (rs *runeStack) peek() rune {
-	return (*rs)[len(*rs)-1]
-}
+func (rs *runeStack) peek() rune { return (*rs)[len(*rs)-1] }
 
 // next returns the next rune in the input
 // next increases newline count
@@ -105,8 +85,10 @@ func (l *Lexer) next() rune {
 
 // peek returns but does not consume next rune in the input
 func (l *Lexer) peek() rune {
-	r := l.next()
-	l.backup()
+	if l.pos >= len(l.Input) {
+		return eof
+	}
+	r, _ := utf8.DecodeRuneInString(l.Input[l.pos:])
 	return r
 }
 
@@ -119,16 +101,13 @@ func (l *Lexer) backup() {
 	}
 }
 
-// emit passes a Token back to the client
+// nextToken returns the next token at the lexer's current position
 // this will also update the last seen emitted Token type
-func (l *Lexer) emit(typ Type) {
-	l.tokens <- Token{
-		typ,
-		l.Input[l.start:l.pos],
-		newPos(l.line, l.col),
-	}
+func (l *Lexer) nextToken(typ Type) Token {
+	tkn := Token{typ, l.Input[l.start:l.pos], newPos(l.line, l.col)}
 	l.start = l.pos
 	l.prevTokTyp = typ
+	return tkn
 }
 
 // ignore skips over the pending input before this point
@@ -150,215 +129,171 @@ func (l *Lexer) acceptRun(valid string) {
 	l.backup()
 }
 
-// errorf emits an error Token; if returned from a stateFunc (return nil)
-// errorf will terminate lexing
+// errorf emits an error Token returns an error token
 // TODO: Make it such that lexical analysis is not terminated when error is reached
 // to improve usability (EXTENSION WITH ERRORLISTS)
-func (l *Lexer) errorf(format string, args ...interface{}) stateFunc {
-	l.tokens <- Token{
-		ERROR,
-		fmt.Sprintf(format, args...),
-		newPos(l.line, l.col),
-	}
-	return nil
+func (l *Lexer) errorf(format string, args ...interface{}) Token {
+	return Token{ILLEGAL, fmt.Sprintf(format, args...), newPos(l.line, l.col)}
 }
 
-// run starts the state machine for the Lexer
-func (l *Lexer) run() {
-	for state := lexCode; state != nil; {
-		state = state(l)
+func (l *Lexer) scan2(runeToScan rune, typ0, typ1 Type) Token {
+	if l.peek() != runeToScan {
+		return l.nextToken(typ1)
 	}
-	close(l.tokens)
+	l.next()
+	return l.nextToken(typ0)
 }
 
-// atIdentifierTerminator reports whether the input is at valid
-// termination character to appear after an identifier
-func (l *Lexer) atIdentifierTerminator() bool {
-	r := l.peek()
-	if isSpace(r) || isEndOfLine(r) {
-		return true
-	}
-	switch r {
-	case
-		eof, '=', // EOF character and assignment/declaration ('='), or equality check ('==')
-		'.', ',', // DOT ('.') to denote .property, or commas
-		'|', '&', // OR ('||'), or AND ('&&')
-		'(', ')', '[', ']', '{', '}', // Parenthesis, square, curly and normal
-		'+', '-', '/', '*', '%': // Math operator signs, or start of a comment ('//', '/*')
-		return true
-	}
-	return false
-}
+// Scan scans for the next token and returns it (Type, string Val and Pos in string)
+// end of source is indicated by a Token of Type EOF.
+//
+func (l *Lexer) Scan() Token {
+ScanAgain:
+	l.skipWhitespace()
 
-// State functions
-
-// stateFn represents the state of the scanner as a function that returns the next state
-type stateFunc func(*Lexer) stateFunc
-
-var vectoredLexState map[rune]stateFunc
-
-func init() {
-	vectoredLexState = map[rune]stateFunc{
-		eof: lexEOF, // where lexCode loop terminates
-		// Spaces
-		' ':  lexSpace,
-		'\t': lexSpace,
-		'\r': lexSpace,
-		'\n': lexNewline,
-
-		// Punctuations
-		':': func(l *Lexer) stateFunc { l.emit(COLON); return lexCode },
-		';': func(l *Lexer) stateFunc { l.emit(SEMICOLON); return lexCode },
-		',': func(l *Lexer) stateFunc { l.emit(COMMA); return lexCode },
-		'|': func(l *Lexer) stateFunc {
-			r := l.Input[l.start]
-			if l.next() == '|' {
-				l.emit(LOGICALOR)
-			} else {
-				return l.errorf("expected Token %#U", r)
-			}
-			return lexCode
-		},
-		'&': func(l *Lexer) stateFunc {
-			r := l.Input[l.start]
-			if l.next() == '&' {
-				l.emit(LOGICALAND)
-			} else {
-				return l.errorf("expected Token %#U", r)
-			}
-			return lexCode
-		},
-		'.': lexDot,
-
-		// quotes
-		'\'': lexQuotedString,
-		'`':  lexRawString,
-
-		// brackets
-		'(': func(l *Lexer) stateFunc { l.emit(LROUND); l.bracketStack.push('('); return lexCode },
-		'[': func(l *Lexer) stateFunc { l.emit(LSQUARE); l.bracketStack.push('['); return lexCode },
-		'{': func(l *Lexer) stateFunc { l.emit(LCURLY); l.bracketStack.push('{'); return lexCode },
-		')': lexRightBracket,
-		']': lexRightBracket,
-		'}': lexRightBracket,
-
-		// Operators
-		'+': lexOperator,
-		'-': lexOperator,
-		'*': lexOperator,
-		'%': lexOperator,
-		'=': lexOperator,
-		'!': lexOperator,
-		'<': lexOperator,
-		'>': lexOperator,
-		'/': func(l *Lexer) stateFunc { // handle for '/', can be comment or divide sign
-			// Special lookahead for '*' or '/', for comment check
-			if int(l.pos) < len(l.Input) {
-				switch r := l.Input[l.pos]; {
-				case r == '/':
-					return lexSinglelineComment
-				case r == '*':
-					return lexMultilineComment
-				}
-			}
-			return lexOperator
-		},
-	}
-	// runes for numbers to the lexState map
-	for r := '0'; r <= '9'; r++ {
-		vectoredLexState[r] = lexNumber
-	}
-}
-
-// lexCode scans the main body of the code, recursively returning itself
-func lexCode(l *Lexer) stateFunc {
-	r := l.next()
-	if stfn, ok := vectoredLexState[r]; ok {
-		return stfn
-	}
-	switch {
-	case isAlphaNumeric(r):
+	switch r := l.next(); {
+	case isLetter(r):
 		l.backup()
-		return lexIdentifier
-	default:
-		return l.errorf("unrecognised character in code: %#U", r)
-	}
-}
-
-// lexEOF emits the EOF Token and handles the termination of the main lexCode loop
-func lexEOF(l *Lexer) stateFunc {
-	if !l.bracketStack.empty() {
-		r := l.bracketStack.pop()
-		return l.errorf("unclosed left bracket: %#U", r)
-	}
-	l.emit(EOF)
-	return nil
-}
-
-// lexSpace scans a run of space characters, One space has already been seen
-// Ignore spaces seen
-func lexSpace(l *Lexer) stateFunc {
-	for isSpace(l.next()) {
-	}
-	l.backup()
-	l.ignore()
-	return lexCode
-}
-
-// lexNewline scans for a run of newline chars ('\n')
-// This method also does the automatic semicolon insertions (ASI rule 1) with
-// the following rules for newlines:
-// 1. the Token is an identifier, or string/number literal
-// 2. the Token is a `break`, `return` or `continue`
-// 3. Token closes a round, square, or curly bracket (')', ']', '}')
-func lexNewline(l *Lexer) stateFunc {
-	l.backup()
-Loop:
-	for {
-		switch r := l.next(); {
-		case r == '\n':
-			l.ignore() // advance head of the lexer, go to next iteration
-			// We do this ignore bit here so that whenever we emit a semicolon,
-			// the string literal emitted will be condensed to a single \n
-		default:
-			l.backup()
-			break Loop
+		return l.lexIdentifier()
+	case '0' <= r && r <= '9':
+		return l.lexNumber()
+	case r == eof:
+		if !l.bracketStack.empty() {
+			r := l.bracketStack.pop()
+			// TODO: Rewrite errorhandling code
+			l.errorf("unclosed left bracket: %#U", r)
 		}
-	}
-	switch l.prevTokTyp {
-	case NAME, STR, INT, FLOAT,
-		BREAK, CONT, RETURN,
-		RROUND, RSQUARE, RCURLY:
-		l.emit(SEMICOLON)
+		return l.nextToken(EOF)
+	case r == '\n':
+		insertSemicolon := false
+		l.skipNewlines(&insertSemicolon)
+		if insertSemicolon {
+			return l.nextToken(SEMICOLON)
+		}
+		goto ScanAgain
+	case r == '\'':
+		return l.lexQuotedString()
+	case r == '`':
+		return l.lexRawString()
+	case r == ':':
+		return l.nextToken(COLON)
+	case r == '.':
+		if r := l.peek(); r < '0' || r > '9' { // if its not a number
+			return l.nextToken(DOT)
+		}
+		return l.lexNumber()
+	case r == ',':
+		return l.nextToken(COMMA)
+	case r == ';':
+		return l.nextToken(SEMICOLON)
+	case r == '(':
+		l.bracketStack.push('(')
+		return l.nextToken(LROUND)
+	case r == ')':
+		// TODO: rewrite error handling
+		if l.bracketStack.empty() {
+			l.errorf("unexpected right bracket %#U", r)
+		} else if toCheck := l.bracketStack.pop(); toCheck != '(' {
+			l.errorf("unexpected right bracket %#U", r)
+		}
+		return l.nextToken(RROUND)
+	case r == '[':
+		l.bracketStack.push('[')
+		return l.nextToken(LSQUARE)
+	case r == ']':
+		// TODO: rewrite error handling
+		if l.bracketStack.empty() {
+			l.errorf("unexpected right bracket %#U", r)
+		} else if toCheck := l.bracketStack.pop(); toCheck != '[' {
+			l.errorf("unexpected right bracket %#U", r)
+		}
+		return l.nextToken(RSQUARE)
+	case r == '{':
+		l.bracketStack.push('{')
+		return l.nextToken(LCURLY)
+	case r == '}':
+		switch {
+		// TODO: rewrite error
+		case l.bracketStack.empty():
+			l.errorf("unexpected right bracket %#U", r)
+		case l.bracketStack.pop() != '{':
+			l.errorf("unexpected right bracket %#U", r)
+		case l.prevTokTyp != SEMICOLON:
+			return l.nextToken(SEMICOLON)
+		}
+		return l.nextToken(RCURLY)
+	case r == '|':
+		if l.peek() != '|' {
+			// TODO: Rewrite errorhandling code
+			l.errorf("Unexpected token: %#U", r)
+		}
+		l.next()
+		return l.nextToken(LOGICALOR)
+	case r == '&':
+		if l.peek() != '&' {
+			// TODO: Rewrite errorhandling code
+			l.errorf("Unexpected token: %#U", r)
+		}
+		l.next()
+		return l.nextToken(LOGICALAND)
+	case r == '+':
+		return l.scan2('=', PLUS, PLUSASSIGN)
+	case r == '-':
+		return l.scan2('=', MINUS, MINUSASSIGN)
+	case r == '*':
+		return l.scan2('=', MULT, MULTASSIGN)
+	case r == '%':
+		return l.scan2('=', MOD, MODASSIGN)
+	case r == '=':
+		return l.scan2('=', ASSIGN, EQ)
+	case r == '!':
+		return l.scan2('=', LOGICALNOT, NEQ)
+	case r == '<':
+		return l.scan2('=', SM, SMEQ)
+	case r == '>':
+		return l.scan2('=', GR, GREQ)
+	case r == '/':
+		// handle for '/', can be comment or divide sign
+		switch r := l.peek(); {
+		case r == '/':
+			l.skipSingleLineComment()
+		case r == '*':
+			l.skipMultilineComment()
+		default:
+			return l.scan2('=', DIV, DIVASSIGN)
+		}
+		goto ScanAgain
 	default:
-		l.ignore() // do not count the spaces as the next() already adds
+		l.errorf("illegal character: %#U", r)
+		return l.nextToken(ILLEGAL)
 	}
-	return lexCode
+
 }
 
 // lexQuotedString scans a quoted string, can be escaped using the '\' character
-func lexQuotedString(l *Lexer) stateFunc {
+func (l *Lexer) lexQuotedString() Token {
 	l.ignore() // ignore the opening quote
 Loop:
 	for {
 		switch l.next() {
 		case '\\': // single '\' character as escape character
 			if r := l.next(); r == '\n' || r == eof {
-				return l.errorf("unterminated quoted string")
+				// TODO: Rewrite error handling
+				l.errorf("unterminated quoted string")
 			}
 		case '\'':
 			l.backup() // move back before the closing quote
 			break Loop
 		}
 	}
-	l.emit(STR)
+	tkn := l.nextToken(STR)
 	l.next()
 	l.ignore() // now consume and ignore the closing quote
-	return lexCode
+	return tkn
 }
 
 // lexRawString scans a raw string delimited by '`' character
-func lexRawString(l *Lexer) stateFunc {
+func (l *Lexer) lexRawString() Token {
 	l.ignore() // ignore the opening quote
 	startLine := l.line
 	startCol := l.col
@@ -370,94 +305,28 @@ Loop:
 			// will error out, okay to overwrite l.line
 			l.line = startLine
 			l.col = startCol
-			return l.errorf("Unterminated raw string")
+			l.errorf("Unterminated raw string")
 		case '`':
 			l.backup() // move back before the closing quote
 			break Loop
 		}
 	}
-	l.emit(STR)
+	tkn := l.nextToken(STR)
 	l.next()
 	l.ignore() // now consume and ignore the closing quote
-	return lexCode
-}
-
-// lexDot scans a dot and determines if its part of the number or a dot
-// to access property
-func lexDot(l *Lexer) stateFunc {
-	// Special lookahead for ".property" so we don't break l.backup()
-	if int(l.pos) < len(l.Input) {
-		if r := l.Input[l.pos]; r < '0' || r > '9' { // if its not a number
-			l.emit(DOT)
-			return lexCode // emit the dot '.' and go back to lexCode
-		}
-	}
-	return lexNumber
-}
-
-// lexOperator scans for a potential operator
-// The first character ('+', '-', '/', '%', '*', '=', '!', '>', '<') has already
-// been consumed
-func lexOperator(l *Lexer) stateFunc {
-	r := l.Input[l.start] // store the 1st character somewhere
-	if l.next() != '=' {
-		l.backup() // go back to capture 'r' only
-		switch r {
-		case '+':
-			l.emit(PLUS)
-		case '-':
-			l.emit(MINUS)
-		case '/':
-			l.emit(DIV)
-		case '%':
-			l.emit(MOD)
-		case '*':
-			l.emit(MULT)
-		case '=':
-			l.emit(ASSIGN)
-		case '!':
-			l.emit(LOGICALNOT)
-		case '>':
-			l.emit(GR)
-		case '<':
-			l.emit(SM)
-		}
-	} else {
-		// capture both r and the equal sign '='
-		switch r {
-		case '+':
-			l.emit(PLUSASSIGN)
-		case '-':
-			l.emit(MINUSASSIGN)
-		case '/':
-			l.emit(DIVASSIGN)
-		case '%':
-			l.emit(MODASSIGN)
-		case '*':
-			l.emit(MULTASSIGN)
-		case '=':
-			l.emit(EQ)
-		case '!':
-			l.emit(NEQ)
-		case '>':
-			l.emit(GREQ)
-		case '<':
-			l.emit(SMEQ)
-		}
-	}
-	return lexCode
+	return tkn
 }
 
 // scanSignificand scans for all numbers (of the given base) up to a non-number
 func (l *Lexer) scanSignificand(base int) {
-	for digitValue(l.peek()) < base {
-		l.next()
+	for digitValue(l.next()) < base {
 	}
+	l.backup()
 }
 
 // lexNumber scans for a number, assumes that the lexer has not consumed the start
 // of the number (either number or a dot)
-func lexNumber(l *Lexer) stateFunc {
+func (l *Lexer) lexNumber() Token {
 	l.backup() // backup to see the '.' or numerical runes
 	emitTyp := INT
 	// Seen decimal point --> is a float (i.e. .1234E10 for example)
@@ -472,14 +341,16 @@ func lexNumber(l *Lexer) stateFunc {
 			l.scanSignificand(16)
 			if l.pos-l.start <= 2 {
 				// Only scanned "0x" or "0X"
-				return l.errorf("illegal hexadecimal number: %q", l.Input[l.start:l.pos])
+				// TODO: Rewrite error handling
+				l.errorf("illegal hexadecimal number: %q", l.Input[l.start:l.pos])
 			}
 		} else {
 			l.scanSignificand(8)
 			if l.accept("89") {
 				// error, illegal octal int/float
 				l.scanSignificand(10)
-				return l.errorf("illegal octal number: %q", l.Input[l.start:l.pos])
+				// TODO: Rewrite error handling
+				l.errorf("illegal octal number: %q", l.Input[l.start:l.pos])
 			}
 			if r := l.peek(); r == '.' || r == 'e' || r == 'E' {
 				// NOTE: ".eEi" including imaginary number, if we wanna support it in the future
@@ -487,8 +358,7 @@ func lexNumber(l *Lexer) stateFunc {
 				goto FRACTION
 			}
 		}
-		l.emit(emitTyp)
-		return lexCode
+		return l.nextToken(emitTyp)
 	}
 	// Decimal integer/float
 	l.scanSignificand(10)
@@ -498,7 +368,8 @@ FRACTION: // handles all other floating point lexing
 		if r := l.peek(); !(r >= '0' && r <= '9') {
 			// NOTE: we prohibit trailing decimal points with no numbers as we would
 			// eventually support method overloading for numbers etc.
-			return l.errorf("Illegal trailing decimal point after number")
+			// TODO: Rewrite error handling
+			l.errorf("Illegal trailing decimal point after number")
 		}
 		l.scanSignificand(10)
 	}
@@ -508,108 +379,102 @@ FRACTION: // handles all other floating point lexing
 		if digitValue(l.peek()) < 10 {
 			l.scanSignificand(10)
 		} else {
-			return l.errorf("Illegal floating-point exponent: %q", l.Input[l.start:l.pos])
+			// TODO: Rewrite error handling
+			l.errorf("Illegal floating-point exponent: %q", l.Input[l.start:l.pos])
 		}
 	}
-	l.emit(emitTyp)
-	return lexCode
+	return l.nextToken(emitTyp)
 }
 
 // lexIdentifier scans an alphanumeric word
-func lexIdentifier(l *Lexer) stateFunc {
-Loop:
-	for {
-		switch r := l.next(); {
-		case isAlphaNumeric(r):
-			// absorb until no more next alphanumeric characters
-		default:
-			l.backup()
-			word := l.Input[l.start:l.pos]
-			if !l.atIdentifierTerminator() {
-				return l.errorf("Bad character: %#U", r)
-			}
-			switch {
-			case keywordBegin+1 <= keywords[word] && keywords[word] < keywordEnd:
-				l.emit(keywords[word])
-			default:
-				l.emit(NAME)
-			}
-			break Loop
-		}
+func (l *Lexer) lexIdentifier() Token {
+	r := l.next()
+	for isLetter(r) || isDigit(r) {
+		r = l.next()
 	}
-	return lexCode
-}
-
-var bracketMap = map[rune]rune{
-	')': '(',
-	']': '[',
-	'}': '{',
-}
-
-// lexRightBracket scans for a right bracket (curly, round, square)
-// This function also runs ASI (Rule 2), a semicolon may be omitted before closing
-// the right curly bracket, this allows complex statements to occupy a single line
-func lexRightBracket(l *Lexer) stateFunc {
 	l.backup()
-	r := l.next() // backup to capture r
-	if l.bracketStack.empty() {
-		return l.errorf("unexpected right bracket %#U", r)
-	} else if toCheck := l.bracketStack.pop(); toCheck != bracketMap[r] {
-		return l.errorf("unexpected right bracket %#U", r)
+	word := l.Input[l.start:l.pos]
+	var typ Type
+	if keywordBegin+1 <= keywords[word] && keywords[word] < keywordEnd {
+		typ = keywords[word]
+	} else {
+		typ = NAME
 	}
-	switch r {
-	case ')':
-		l.emit(RROUND)
-	case '}':
-		if l.prevTokTyp != SEMICOLON {
-			l.backup() // backup to not accidentally emit the right curly bracket
-			l.emit(SEMICOLON)
-			l.next() // advance forward to contain the right curly bracket again
-		}
-		l.emit(RCURLY)
-	case ']':
-		l.emit(RSQUARE)
-	}
-	return lexCode
+	return l.nextToken(typ)
 }
 
-// lexSinglelineComment scans a single line comment ('//') and discards it
-func lexSinglelineComment(l *Lexer) stateFunc {
-	for {
-		if r := l.next(); isEndOfLine(r) || r == eof {
-			break
-		}
+func (l *Lexer) skipWhitespace() {
+	for isSpace(l.next()) {
+	}
+	l.backup()
+	l.ignore()
+}
+
+// skipNewlines ignores consecutive newlines and sets the state for
+// automatic semicolon insertion via the following rules:
+// 1. the Token is an identifier, or string/number literal
+// 2. the Token is a `break`, `return` or `continue`
+// 3. Token closes a round, square, or curly bracket (')', ']', '}')
+func (l *Lexer) skipNewlines(insertSemicolon *bool) {
+	l.ignore() // ignore the 1st newline
+	for r := l.next(); r != '\n'; r = l.next() {
+		// advance head of the lexer, go to next iteration
+		// We do this ignore bit here so that whenever we emit a semicolon,
+		// the string literal emitted will be condensed to a single \n
+		l.ignore()
+	}
+	l.backup()
+	switch l.prevTokTyp {
+	case NAME, STR, INT, FLOAT,
+		BREAK, CONT, RETURN,
+		RROUND, RSQUARE, RCURLY:
+		*insertSemicolon = true
+	default:
+		l.ignore() // do not count the spaces as the next() already adds
+	}
+}
+
+// skipSingleLineComment skips over the while single line comment
+func (l *Lexer) skipSingleLineComment() {
+	for r := l.next(); !(r == '\n' || r == eof); r = l.next() {
 	}
 	l.ignore()
-	return lexCode
 }
 
-// lexMultilineComment scans for a multiline comment block ('/*', '*/') and discards it
+// skipMultilineComment skips over the whole multiline comment
 // The left comment marker ('/*') has already been consumed
-func lexMultilineComment(l *Lexer) stateFunc {
-	if i := strings.Index(l.Input[l.pos:], "*/"); i < 0 {
-		return l.errorf("Multiline comment is not closed")
-	}
+func (l *Lexer) skipMultilineComment() {
+	// NOTE: we ignore this as unclosed multiline comments shouldnt be an error
+	// if i := strings.Index(l.Input[l.pos:], "*/"); i < 0 {
+	// 	// TODO: rewrite error handling
+	// 	l.errorf("Multiline comment is not closed")
+	// }
 	var left, right rune
 	right = l.next()
 	for {
 		left, right = right, l.next()
 		if left == '*' && right == '/' {
 			break
+		} else if left == eof || right == eof {
+			break
 		}
 	}
 	l.ignore()
-	return lexCode
 }
 
 // Utility Functions
 
 func isSpace(r rune) bool { return r == ' ' || r == '\t' || r == '\r' }
 
-func isEndOfLine(r rune) bool { return r == '\n' }
+func isDigit(r rune) bool {
+	return '0' <= r && r <= '9' || r >= utf8.RuneSelf && unicode.IsDigit(r)
+}
 
-func isAlphaNumeric(r rune) bool {
-	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
+func isLetter(r rune) bool {
+	return 'a' <= r && r <= 'z' ||
+		'A' <= r && r <= 'Z' ||
+		r == '_' ||
+		r >= utf8.RuneSelf && unicode.IsLetter(r)
 }
 
 func digitValue(ch rune) int {

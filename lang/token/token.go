@@ -57,7 +57,7 @@ func (tok Token) String() string {
 	switch {
 	case tok.Type == EOF:
 		return "EOF"
-	case tok.Type == ERROR:
+	case tok.Type == ILLEGAL:
 		return fmt.Sprintf("<err: %s>", tok.Value)
 	case tok.Type == SEMICOLON:
 		return ";"
@@ -74,7 +74,7 @@ type Type int
 
 // Types of tokens
 const (
-	ERROR Type = iota // error occurred; value is the text of error
+	ILLEGAL Type = iota // error occurred; value is the text of error
 	EOF
 
 	DOT       // .
@@ -144,7 +144,7 @@ const (
 )
 
 var tokenTypes = [...]string{
-	ERROR:       "ERROR",
+	ILLEGAL:     "ILLEGAL",
 	EOF:         "EOF",
 	DOT:         "DOT",
 	COLON:       ":",
