@@ -12,10 +12,11 @@ import (
 // https://golang.org/src/go/scanner/scanner.go
 
 // NewLexer creates a new lexer for the input string
-func NewLexer(name, input string) *Lexer {
+func NewLexer(name, input string, eh ErrorHandler) *Lexer {
 	l := &Lexer{
 		Name:    name,
 		Input:   input,
+		eh:      eh,
 		line:    1,
 		col:     0,
 		prevCol: 0,
@@ -23,16 +24,21 @@ func NewLexer(name, input string) *Lexer {
 	return l
 }
 
+// ErrorHandler handles errors during the lexing phase
+type ErrorHandler func(filename string, pos Pos, msg string)
+
 // Lexer scans the entire input string and tokenises it, storing the tokens in
 // a channel of Tokens
 type Lexer struct {
-	Name  string // name of the input; used only for error reporting
-	Input string // string being scanned
+	Name       string // name of the input; used only for error reporting
+	Input      string // string being scanned
+	ErrorCount int    // errors encountered
 
 	// current state to track & emit info
-	line    uint32 // 1 + number of newlines seen
-	col     uint32 // 1 + current column number
-	prevCol uint32 // previous column number seen (ensure backup() is correct)
+	line    uint32       // 1 + number of newlines seen
+	col     uint32       // 1 + current column number
+	prevCol uint32       // previous column number seen (ensure backup() is correct)
+	eh      ErrorHandler // error reporting; or nil
 
 	// Internal lexer state
 	start        int       // start position of the current token
@@ -129,23 +135,30 @@ func (l *Lexer) acceptRun(valid string) {
 	l.backup()
 }
 
-// errorf emits an error Token returns an error token
-// TODO: Make it such that lexical analysis is not terminated when error is reached
-// to improve usability (EXTENSION WITH ERRORLISTS)
-func (l *Lexer) errorf(format string, args ...interface{}) Token {
-	return Token{ILLEGAL, fmt.Sprintf(format, args...), newPos(l.line, l.col)}
+func (l *Lexer) errorf(message string, msgArgs ...interface{}) {
+	if l.eh != nil {
+		l.eh(l.Name, newPos(l.line, l.col), fmt.Sprintf(message, msgArgs...))
+	}
+	l.ErrorCount++
 }
 
+// scan2 checks the next rune against the runeToScan, if it is the same, returns
+// a token of typ1, else typ0
 func (l *Lexer) scan2(runeToScan rune, typ0, typ1 Type) Token {
-	if l.peek() != runeToScan {
+	if l.peek() == runeToScan {
+		l.next() // consume the next rune
 		return l.nextToken(typ1)
 	}
-	l.next()
 	return l.nextToken(typ0)
 }
 
-// Scan scans for the next token and returns it (Type, string Val and Pos in string)
-// end of source is indicated by a Token of Type EOF.
+// Scan scans for the next token and returns it (Type, string Val and Pos in
+// string) end of source is indicated by a Token of Type EOF.
+//
+// Scan will still return a valid token if possible even if a lexing error was
+// encountered. Client should not assume that no error has occured and should
+// check the lexer's ErrorCount or the number of calls to the errorhandler, if
+// it is installed.
 //
 func (l *Lexer) Scan() Token {
 ScanAgain:
@@ -160,7 +173,6 @@ ScanAgain:
 	case r == eof:
 		if !l.bracketStack.empty() {
 			r := l.bracketStack.pop()
-			// TODO: Rewrite errorhandling code
 			l.errorf("unclosed left bracket: %#U", r)
 		}
 		return l.nextToken(EOF)
@@ -190,7 +202,6 @@ ScanAgain:
 		l.bracketStack.push('(')
 		return l.nextToken(LROUND)
 	case r == ')':
-		// TODO: rewrite error handling
 		if l.bracketStack.empty() {
 			l.errorf("unexpected right bracket %#U", r)
 		} else if toCheck := l.bracketStack.pop(); toCheck != '(' {
@@ -201,7 +212,6 @@ ScanAgain:
 		l.bracketStack.push('[')
 		return l.nextToken(LSQUARE)
 	case r == ']':
-		// TODO: rewrite error handling
 		if l.bracketStack.empty() {
 			l.errorf("unexpected right bracket %#U", r)
 		} else if toCheck := l.bracketStack.pop(); toCheck != '[' {
@@ -213,7 +223,6 @@ ScanAgain:
 		return l.nextToken(LCURLY)
 	case r == '}':
 		switch {
-		// TODO: rewrite error
 		case l.bracketStack.empty():
 			l.errorf("unexpected right bracket %#U", r)
 		case l.bracketStack.pop() != '{':
@@ -224,14 +233,12 @@ ScanAgain:
 		return l.nextToken(RCURLY)
 	case r == '|':
 		if l.peek() != '|' {
-			// TODO: Rewrite errorhandling code
 			l.errorf("Unexpected token: %#U", r)
 		}
 		l.next()
 		return l.nextToken(LOGICALOR)
 	case r == '&':
 		if l.peek() != '&' {
-			// TODO: Rewrite errorhandling code
 			l.errorf("Unexpected token: %#U", r)
 		}
 		l.next()
@@ -278,7 +285,6 @@ Loop:
 		switch l.next() {
 		case '\\': // single '\' character as escape character
 			if r := l.next(); r == '\n' || r == eof {
-				// TODO: Rewrite error handling
 				l.errorf("unterminated quoted string")
 			}
 		case '\'':
@@ -341,7 +347,6 @@ func (l *Lexer) lexNumber() Token {
 			l.scanSignificand(16)
 			if l.pos-l.start <= 2 {
 				// Only scanned "0x" or "0X"
-				// TODO: Rewrite error handling
 				l.errorf("illegal hexadecimal number: %q", l.Input[l.start:l.pos])
 			}
 		} else {
@@ -349,7 +354,6 @@ func (l *Lexer) lexNumber() Token {
 			if l.accept("89") {
 				// error, illegal octal int/float
 				l.scanSignificand(10)
-				// TODO: Rewrite error handling
 				l.errorf("illegal octal number: %q", l.Input[l.start:l.pos])
 			}
 			if r := l.peek(); r == '.' || r == 'e' || r == 'E' {
@@ -368,7 +372,6 @@ FRACTION: // handles all other floating point lexing
 		if r := l.peek(); !(r >= '0' && r <= '9') {
 			// NOTE: we prohibit trailing decimal points with no numbers as we would
 			// eventually support method overloading for numbers etc.
-			// TODO: Rewrite error handling
 			l.errorf("Illegal trailing decimal point after number")
 		}
 		l.scanSignificand(10)
@@ -379,7 +382,6 @@ FRACTION: // handles all other floating point lexing
 		if digitValue(l.peek()) < 10 {
 			l.scanSignificand(10)
 		} else {
-			// TODO: Rewrite error handling
 			l.errorf("Illegal floating-point exponent: %q", l.Input[l.start:l.pos])
 		}
 	}
@@ -417,7 +419,7 @@ func (l *Lexer) skipWhitespace() {
 // 3. Token closes a round, square, or curly bracket (')', ']', '}')
 func (l *Lexer) skipNewlines(insertSemicolon *bool) {
 	l.ignore() // ignore the 1st newline
-	for r := l.next(); r != '\n'; r = l.next() {
+	for r := l.next(); r == '\n'; r = l.next() {
 		// advance head of the lexer, go to next iteration
 		// We do this ignore bit here so that whenever we emit a semicolon,
 		// the string literal emitted will be condensed to a single \n
@@ -443,12 +445,9 @@ func (l *Lexer) skipSingleLineComment() {
 
 // skipMultilineComment skips over the whole multiline comment
 // The left comment marker ('/*') has already been consumed
+// If right comment marker not found ('*/'), will lex all the way to the end
 func (l *Lexer) skipMultilineComment() {
-	// NOTE: we ignore this as unclosed multiline comments shouldnt be an error
-	// if i := strings.Index(l.Input[l.pos:], "*/"); i < 0 {
-	// 	// TODO: rewrite error handling
-	// 	l.errorf("Multiline comment is not closed")
-	// }
+	// TODO: Improve this, use Index to find */ instead
 	var left, right rune
 	right = l.next()
 	for {

@@ -9,6 +9,12 @@ import (
 // by concatenating two 32-bit integers representing line and col.
 type Pos uint64
 
+// InvalidPos is the zero value of Pos and is always smaller than any other Pos value.
+const InvalidPos Pos = 0
+
+// IsValid reports if Pos is valid
+func (p Pos) IsValid() bool { return p != InvalidPos }
+
 func newPos(line uint32, col uint32) Pos {
 	return Pos(uint64(line)<<32 | uint64(col))
 }
@@ -20,10 +26,30 @@ func (p Pos) decompose() (line int, col int) {
 	return
 }
 
+// Line returns the current line for Pos
+func (p Pos) Line() int {
+	line, _ := p.decompose()
+	return line
+}
+
+// Col returns the current col for Pos
+func (p Pos) Col() int {
+	_, col := p.decompose()
+	return col
+}
+
 // String returns the string representation of the position line:col
+// if Pos is not valid, returns an empty string
 func (p Pos) String() string {
-	line, col := p.decompose()
-	return fmt.Sprintf("%d:%d", line, col)
+	var s string
+	if p.IsValid() {
+		line, col := p.decompose()
+		s += fmt.Sprintf("%d", line)
+		if col != 0 {
+			s += fmt.Sprintf(":%d", col)
+		}
+	}
+	return s
 }
 
 // Pos helpers
