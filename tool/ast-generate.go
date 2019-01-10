@@ -27,9 +27,14 @@ func (nt nodeType) templateData() {}
 
 // nodeImpl models the string data needed for Node implementations
 type nodeImpl struct {
-	Name   string            // name of the node implementation
-	Fields map[string]string // a mapping of fieldnames to types
+	Name   string  // name of the node implementation
+	Fields []field // a mapping of fieldnames to types
 }
+
+// field is represents a name-type pair
+type field struct{ name, typ string }
+
+func (f field) String() string { return f.name + " " + f.typ }
 
 type astIntInfo struct {
 	DirName string
@@ -55,17 +60,17 @@ func main() {
 		DirName:  outdir,
 		BaseName: "Expr",
 		Decls: []nodeImpl{
-			nodeImpl{Name: "GrpExpr", Fields: map[string]string{
-				"Expression": "Expr",
+			nodeImpl{Name: "GrpExpr", Fields: []field{
+				field{"Expression", "Expr"},
 			}},
-			nodeImpl{Name: "BinExpr", Fields: map[string]string{
-				"Left": "Expr", "Right": "Expr", "Op": "token.Token",
+			nodeImpl{Name: "BinExpr", Fields: []field{
+				field{"Left", "Expr"}, field{"Op", "token.Token"}, field{"Right", "Expr"},
 			}},
-			nodeImpl{Name: "UnExpr", Fields: map[string]string{
-				"Operand": "Expr", "Op": "token.Token",
+			nodeImpl{Name: "UnExpr", Fields: []field{
+				field{"Op", "token.Token"}, field{"Operand", "Expr"},
 			}},
-			nodeImpl{Name: "BasicLit", Fields: map[string]string{
-				"Text": "string",
+			nodeImpl{Name: "BasicLit", Fields: []field{
+				field{"Text", "string"},
 			}},
 		},
 	}
@@ -111,10 +116,11 @@ func generateTemplate(name string, templateText string) *template.Template {
 		"ToLower":      strings.ToLower,
 		"JoinString":   strings.Join,
 		"FilePathBase": filepath.Base,
-		"MapKvJoin": func(m map[string]string, kvSep string, sep string) string {
+		"FieldJoin": func(m []field, kvSep string, sep string) string {
 			var buf bytes.Buffer
 			first := true
-			for k, v := range m {
+			for _, field := range m {
+				k, v := field.name, field.typ
 				if !first {
 					buf.WriteString(sep)
 				}
@@ -147,7 +153,7 @@ abstract class {{.BaseName}} {
 		final {{$fn}};
 		{{- end}}
 
-		{{$nodeImpl.Name}}({{MapKvJoin $nodeImpl.Fields " " ", "}}) {
+		{{$nodeImpl.Name}}({{FieldJoin $nodeImpl.Fields " " ", "}}) {
 			{{- range $fn, $ft := $nodeImpl.Fields}}
 			this.{{$fn}} = {{$fn}};
 			{{- end}}
@@ -184,7 +190,7 @@ type (
 	{{- range $i, $nodeImpl := .Decls}}
 	// {{$nodeImpl.Name}} node
 	{{$nodeImpl.Name}} struct {
-		{{MapKvJoin $nodeImpl.Fields " " "\n"}}
+		{{FieldJoin $nodeImpl.Fields " " "\n"}}
 	}
 	{{end}}
 )
