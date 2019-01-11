@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	"github.com/lohvht/went/lang/ast"
+	"github.com/lohvht/went/lang/lexer"
 	"github.com/lohvht/went/lang/token"
 )
 
 type Parser struct {
 	name      string
-	tokeniser *token.Lexer
+	tokeniser *lexer.Lexer
 	errors    token.ErrorList
 
 	currentToken token.Token // next token to be consumed
@@ -17,14 +18,12 @@ type Parser struct {
 }
 
 func New(name, input string) (p *Parser) {
-	p = &Parser{}
 	eh := func(filename string, pos token.Pos, msg string) {
 		p.errors.Add(filename, pos, msg)
 		// NOTE: print to log for convenience, remove when no longer needed for debug
 		// log.Fatalln(p.errors[len(p.errors)-1])
 	}
-	p.name = name
-	p.tokeniser = token.NewLexer(name, input, eh)
+	p = &Parser{name: name, tokeniser: lexer.New(name, input, eh)}
 	return
 }
 

@@ -15,7 +15,8 @@ const InvalidPos Pos = 0
 // IsValid reports if Pos is valid
 func (p Pos) IsValid() bool { return p != InvalidPos }
 
-func newPos(line uint32, col uint32) Pos {
+// NewPos creates a new Pos based on the line and col given
+func NewPos(line uint32, col uint32) Pos {
 	return Pos(uint64(line)<<32 | uint64(col))
 }
 
@@ -63,7 +64,7 @@ func AddOffset(p Pos, offset int) Pos {
 		// NOTE: update if running into issues relating to debugging
 		newCol = 0
 	}
-	return newPos(uint32(line), uint32(newCol))
+	return NewPos(uint32(line), uint32(newCol))
 }
 
 // Token represents a Token of the Went programming language
@@ -89,7 +90,7 @@ func (tok Token) String() string {
 		return ";"
 	case tok.Type == NAME:
 		return fmt.Sprintf("<NAME:%q>", tok.Value)
-	case keywordBegin+1 <= tok.Type && tok.Type < keywordEnd:
+	case KeywordBegin+1 <= tok.Type && tok.Type < KeywordEnd:
 		return fmt.Sprintf("<%s>", tok.Value)
 	}
 	return fmt.Sprintf("%q", tok.Value)
@@ -148,7 +149,7 @@ const (
 	LOGICALAND // &&
 	operatorEnd
 
-	keywordBegin
+	KeywordBegin
 	CLASS  // class keyword
 	SUPER  // super keyword
 	SELF   // self keyword
@@ -166,7 +167,7 @@ const (
 	BREAK  // break keyword
 	CONT   // continue keyword
 	VAR    // var keyword (variable declaration)
-	keywordEnd
+	KeywordEnd
 )
 
 var tokenTypes = [...]string{
@@ -236,12 +237,13 @@ func (t Type) String() string {
 	return s
 }
 
-var keywords map[string]Type
+// Keywords is a map of strings of keywords used that corresponds to their token.Type
+var Keywords map[string]Type
 
 func init() {
-	keywords = make(map[string]Type)
-	for i := keywordBegin + 1; i < keywordEnd; i++ {
-		keywords[tokenTypes[i]] = i
+	Keywords = make(map[string]Type)
+	for i := KeywordBegin + 1; i < KeywordEnd; i++ {
+		Keywords[tokenTypes[i]] = i
 	}
 }
 

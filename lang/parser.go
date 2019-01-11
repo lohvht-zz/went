@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/lohvht/went/lang/lexer"
 	"github.com/lohvht/went/lang/token"
 )
 
@@ -22,7 +23,7 @@ type Parser struct {
 	// symtab *SymbolTable // the entire symbol table, global scope, local scope, functions etc.
 	// currentScope *Scope
 	input        string // input text to be parsed
-	tokeniser    *token.Lexer
+	tokeniser    *lexer.Lexer
 	tokens       token.List  // list of token lookaheads
 	currentToken token.Token // the local that we are currently looking at (Not a lookahead)
 }
