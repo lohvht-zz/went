@@ -16,25 +16,28 @@ type (
 	}
 	// GrpExpr node
 	GrpExpr struct {
+		LeftRound  token.Token
 		Expression Expr
+		RightRound token.Token
 	}
 
 	// BinExpr node
 	BinExpr struct {
 		Left  Expr
-		Right Expr
 		Op    token.Token
+		Right Expr
 	}
 
 	// UnExpr node
 	UnExpr struct {
-		Operand Expr
 		Op      token.Token
+		Operand Expr
 	}
 
 	// BasicLit node
 	BasicLit struct {
-		Text string
+		Value interface{}
+		Token token.Token
 	}
 )
 

@@ -23,7 +23,7 @@ func (v *AstPrinter) visitUnExpr(n *UnExpr) interface{} {
 	return v.surroundBracket(n.Op.Value, n.Operand)
 }
 func (v *AstPrinter) visitBasicLit(n *BasicLit) interface{} {
-	return n.Text
+	return n.Value
 }
 
 func (v *AstPrinter) surroundBracket(name string, exprs ...Expr) string {

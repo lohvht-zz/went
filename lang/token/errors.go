@@ -14,7 +14,13 @@ type Error struct {
 	Msg      string
 }
 
-func (e Error) Error() string {
+// filenamePosStr returns a string representation of <filename>:<line#>:<col#>
+// it can take the following forms:
+// <filename>:<line#>:<col#>
+// <filename>:<line#>
+// <line#>:<col#>
+// "" => only happens when filename is empty, and Pos is not valid
+func (e Error) filenamePosStr() string {
 	s := e.Filename
 	if e.Pos.IsValid() {
 		if s != "" {
@@ -22,6 +28,11 @@ func (e Error) Error() string {
 		}
 		s += e.Pos.String()
 	}
+	return s
+}
+
+func (e Error) Error() string {
+	s := e.filenamePosStr()
 	if s == "" {
 		// return Msg if empty filename and invalid Pos
 		return e.Msg

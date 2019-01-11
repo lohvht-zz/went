@@ -61,16 +61,16 @@ continue_statement: "continue";
 IfExpr: OrAndExpr ("if" OrAndExpr "else" IfExpr)?;
 
 OrAndExpr: NotExpr (("||" | "&&") NotExpr)*;
-NotExpr: "!" NotExpr | ComparisonExpr;
+NotExpr: "!" NotExpr | EqlExpr;
 
 =======
 
-ComparisonExpr: AddExpr (comparison_op AddExpr)*;
-comparison_op: "==" | "!=" | "<" | ">" | "<=" | ">=" | ["!"] "in"
+EqlExpr: ComparisonExpr ( ("==" | "!=" | ["!"] "in") ComparisonExpr);
+ComparisonExpr: AddExpr (("<" | ">" | "<=" | ">=") AddExpr)*;
 
 AddExpr: MultExpr (("+" | "-") MultExpr)*;
-MultExpr: UnExpr (("*" | "/" | "%") UnExpr)*;
-UnExpr: ("+" | "-") UnExpr | PrimaryExpr;
+MultExpr: ArithUnExpr (("*" | "/" | "%") ArithUnExpr)*;
+ArithUnExpr: ("+" | "-") ArithUnExpr | PrimaryExpr;
 
 PrimaryExpr: Operand | PrimaryExpr Selector | PrimaryExpr Index | PrimaryExpr Slice | PrimaryExpr Args;
 Selector: "." Name;
@@ -90,10 +90,15 @@ Key: Name | str;
 NEWLINE: "\n" | "\r\n";
 EOF: "EOF";
 
-// OPERATOR PRECEDENCES
-// 5 * / %
-// 4 + -
-// 3 == != < <= > >=
+// https://docs.python.org/3/reference/expressions.html#comparisons
+// OPERATOR PRECEDENCES ==> refer back to python precedence ^ (especially for comparison operators!)
+// 8 + - (unary plus, minus)
+// 7 * / % (mult, div, mod)
+// 6 + - (bin plus, minus)
+// 5 < <= > >= (comparison)
+// 4 == != (equality)
+// 3 = %= += /= etc... (assignment operators)
+// 3 [!] in (membership operator) TODO: may wanna include identity operators like "is", "! is"? (higher than membership)
 // 2 &&
 // 1 ||
 // 

@@ -61,7 +61,8 @@ func main() {
 		BaseName: "Expr",
 		Decls: []nodeImpl{
 			nodeImpl{Name: "GrpExpr", Fields: []field{
-				field{"Expression", "Expr"},
+				field{"LeftRound", "token.Token"}, field{"Expression", "Expr"},
+				field{"RightRound", "token.Token"},
 			}},
 			nodeImpl{Name: "BinExpr", Fields: []field{
 				field{"Left", "Expr"}, field{"Op", "token.Token"}, field{"Right", "Expr"},
@@ -70,7 +71,7 @@ func main() {
 				field{"Op", "token.Token"}, field{"Operand", "Expr"},
 			}},
 			nodeImpl{Name: "BasicLit", Fields: []field{
-				field{"Text", "string"},
+				field{"Value", "interface{}"}, field{"Token", "token.Token"},
 			}},
 		},
 	}

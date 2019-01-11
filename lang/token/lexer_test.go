@@ -9,8 +9,9 @@ type testHandler struct{ errors ErrorList }
 func initTestHandler(name, input string) (*Lexer, *testHandler) {
 	th := &testHandler{}
 	eh := func(filename string, pos Pos, msg string) { th.errors.Add(filename, pos, msg) }
-	l := NewLexer(name, input, eh)
-	return l, th
+	var l Lexer
+	l.Init(name, input, eh)
+	return &l, th
 }
 
 // makeToken creates a Token given a Type and a string denoting its value

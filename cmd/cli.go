@@ -8,7 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lohvht/went/lang/token"
+	"github.com/lohvht/went/lang/ast"
+	"github.com/lohvht/went/lang/parser"
 )
 
 // NOTE: write-up on how to decouple CLI and Running commands
@@ -33,7 +34,11 @@ func Run() int {
 		}
 		s := string(b) // string value of input
 		name := filepath.Base(filename)
-		runFile(name, s)
+		err = runFile(name, s)
+		if err != nil {
+			log.Printf(err.Error())
+			return 65
+		}
 	} else {
 		runPrompt()
 	}
@@ -45,49 +50,27 @@ func runPrompt() {
 	// REVIEW: Make a mode that runs line-by-line interpretation in a manner similar
 	// to Python IDLE or javascript consoles for browsers
 	s := bufio.NewScanner(os.Stdin)
+	var err error
+	fmt.Print("> ")
 	for s.Scan() {
+		err = run("", s.Text())
+		if err != nil {
+			fmt.Println(err.Error())
+		}
 		fmt.Print("> ")
-		run(token.Tokenise("Interpreter Mode> ", s.Text()))
-		hasError = false
 	}
 }
 
 // runFile takes in the string input and runs the language
-func runFile(name, input string) {
-	// p, errp := lang.Parse(name, input)
-	// if errp != nil {
-	// 	log.Fatal(errp)
-	// }
-	// _, erri := lang.Interpret(p.Root)
-	// if erri != nil {
-	// 	log.Fatal(erri)
-	// }
-	lexer := token.Tokenise(name, input)
-	run(lexer)
+func runFile(name, input string) error { return run(name, input) }
 
-	if hasError {
-		os.Exit(65)
+func run(name, input string) error {
+	p := parser.New(name, input)
+	expr, errs := p.Run()
+	if errs != nil {
+		return errs
 	}
-}
-
-func run(lexer *token.Lexer) {
-	for {
-		t := lexer.Next()
-		if t.Type == token.EOF {
-			fmt.Println(t)
-			break
-		}
-		fmt.Println(t)
-	}
-}
-
-//////////////////////////////////////////
-// EXTRA
-var hasError = false
-
-func error(line int, msg string) { report(line, "", msg) }
-
-func report(line int, where, msg string) {
-	log.Fatalf("[line %d] Error %s: %s", line, where, msg)
-	hasError = true
+	printer := &ast.AstPrinter{}
+	fmt.Println(printer.Print(expr))
+	return nil
 }

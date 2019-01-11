@@ -7,21 +7,23 @@ import (
 	"unicode/utf8"
 )
 
-// Most of this package is listed and adapted from
-// https://golang.org/src/text/template/parse/lex.go and partially taken from
-// https://golang.org/src/go/scanner/scanner.go
-
-// NewLexer creates a new lexer for the input string
-func NewLexer(name, input string, eh ErrorHandler) *Lexer {
-	l := &Lexer{
-		Name:    name,
-		Input:   input,
-		eh:      eh,
-		line:    1,
-		col:     0,
-		prevCol: 0,
-	}
-	return l
+// NewLexer prepares the lexer to tokenise the input string by setting it at the
+// beginning of input. The keeps track of line, column information based on how
+// many newlines it has seen thus far rune by rune (via the lexer's next() method)
+//
+// Calls to Scan will invoke the error handler eh if they encounter an error during
+// lexing and eh is not nil. For each error encountered, the lexer also keeps track an
+// ErrorCount
+//
+func NewLexer(name, input string, eh ErrorHandler) (l *Lexer) {
+	l = &Lexer{}
+	l.Name = name
+	l.Input = input
+	l.eh = eh
+	l.line = 1
+	l.col = 0
+	l.prevCol = 0
+	return
 }
 
 // ErrorHandler handles errors during the lexing phase
@@ -418,21 +420,24 @@ func (l *Lexer) skipWhitespace() {
 // 2. the Token is a `break`, `return` or `continue`
 // 3. Token closes a round, square, or curly bracket (')', ']', '}')
 func (l *Lexer) skipNewlines(insertSemicolon *bool) {
-	l.ignore() // ignore the 1st newline
-	for r := l.next(); r == '\n'; r = l.next() {
-		// advance head of the lexer, go to next iteration
-		// We do this ignore bit here so that whenever we emit a semicolon,
-		// the string literal emitted will be condensed to a single \n
-		l.ignore()
+Loop:
+	for {
+		switch r := l.peek(); {
+		// peek the next rune, if its a newline we advance
+		case r == '\n':
+			l.ignore() // ignore current newline
+			l.next()   // advance the head of the lexer
+		default:
+			break Loop
+		}
 	}
-	l.backup()
 	switch l.prevTokTyp {
 	case NAME, STR, INT, FLOAT,
 		BREAK, CONT, RETURN,
 		RROUND, RSQUARE, RCURLY:
 		*insertSemicolon = true
 	default:
-		l.ignore() // do not count the spaces as the next() already adds
+		l.ignore()
 	}
 }
 
