@@ -1,5 +1,12 @@
 package lang
 
+/**
+ * NOTE: This file is deprecated and should be cleaned up (i.e. Deleted) as soon
+ * as the main language is written
+ * It's being kept around as a reference while the lox implementation is being
+ * written
+ */
+
 import (
 	"github.com/lohvht/went/lang/token"
 )
