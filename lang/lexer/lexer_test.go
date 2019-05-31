@@ -10,7 +10,9 @@ type testHandler struct{ errors token.ErrorList }
 
 func initTestHandler(name, input string) (*Lexer, *testHandler) {
 	th := &testHandler{}
-	eh := func(filename string, pos token.Pos, msg string) { th.errors.Add(filename, pos, msg) }
+	eh := func(filename string, pos token.Pos, msg string) {
+		th.errors.Add(token.NewGenericError(filename, pos, msg))
+	}
 	l := New(name, input, eh)
 	return l, th
 }
@@ -98,6 +100,15 @@ type lexTestcase struct {
 
 var lexTests = []lexTestcase{
 	// Positive Test Cases
+	{"test1.wt",
+		`1 + 2 - 30123.123
+//1 in 2
+print "one"
+print true
+print 2 + 1
+`,
+		[]token.Token{tknEOF},
+	},
 	{"empty",
 		"",
 		[]token.Token{tknEOF},

@@ -14,6 +14,11 @@ type (
 		Node
 		expr()
 	}
+	// NameExpr node
+	NameExpr struct {
+		Name token.Token
+	}
+
 	// GrpExpr node
 	GrpExpr struct {
 		LeftRound  token.Token
@@ -36,17 +41,30 @@ type (
 
 	// BasicLit node
 	BasicLit struct {
-		Value interface{}
+		Text  string
+		Typ   token.Type
 		Token token.Token
+		Value interface{}
 	}
 )
 
+func (n *NameExpr) expr() {}
 func (n *GrpExpr) expr()  {}
 func (n *BinExpr) expr()  {}
 func (n *UnExpr) expr()   {}
 func (n *BasicLit) expr() {}
 
-func (n *GrpExpr) accept(v Visitor) interface{}  { return v.visitGrpExpr(n) }
-func (n *BinExpr) accept(v Visitor) interface{}  { return v.visitBinExpr(n) }
-func (n *UnExpr) accept(v Visitor) interface{}   { return v.visitUnExpr(n) }
-func (n *BasicLit) accept(v Visitor) interface{} { return v.visitBasicLit(n) }
+// Accept marshals the Visitor to the correct Visitor.visitXX method
+func (n *NameExpr) Accept(v Visitor) interface{} { return v.VisitNameExpr(n) }
+
+// Accept marshals the Visitor to the correct Visitor.visitXX method
+func (n *GrpExpr) Accept(v Visitor) interface{} { return v.VisitGrpExpr(n) }
+
+// Accept marshals the Visitor to the correct Visitor.visitXX method
+func (n *BinExpr) Accept(v Visitor) interface{} { return v.VisitBinExpr(n) }
+
+// Accept marshals the Visitor to the correct Visitor.visitXX method
+func (n *UnExpr) Accept(v Visitor) interface{} { return v.VisitUnExpr(n) }
+
+// Accept marshals the Visitor to the correct Visitor.visitXX method
+func (n *BasicLit) Accept(v Visitor) interface{} { return v.VisitBasicLit(n) }

@@ -8,14 +8,22 @@ package ast
 
 // Node is the common interface for all AST nodes
 type Node interface {
-	accept(Visitor) interface{}
+	// Accept marshals the Visitor to the correct Visitor.visitMethod
+	Accept(Visitor) interface{}
 }
 
 // Visitor is the interface used to implement visitor pattern for the AST
+// Interpreter nodes with their visit methods are supposed to return nil as
+// statements should resolve to a value
 type Visitor interface {
+	// visit Stmt node functions
+	VisitExprStmt(*ExprStmt) interface{}
+	VisitNameDeclStmt(*NameDeclStmt) interface{}
+
 	// visit Expr node functions
-	visitGrpExpr(*GrpExpr) interface{}
-	visitBinExpr(*BinExpr) interface{}
-	visitUnExpr(*UnExpr) interface{}
-	visitBasicLit(*BasicLit) interface{}
+	VisitNameExpr(*NameExpr) interface{}
+	VisitGrpExpr(*GrpExpr) interface{}
+	VisitBinExpr(*BinExpr) interface{}
+	VisitUnExpr(*UnExpr) interface{}
+	VisitBasicLit(*BasicLit) interface{}
 }

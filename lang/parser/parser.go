@@ -2,6 +2,10 @@ package parser
 
 import (
 	"fmt"
+<<<<<<< HEAD
+=======
+	"strconv"
+>>>>>>> lox-impl-temp
 
 	"github.com/lohvht/went/lang/ast"
 	"github.com/lohvht/went/lang/lexer"
@@ -11,7 +15,11 @@ import (
 type Parser struct {
 	name      string
 	tokeniser *lexer.Lexer
+<<<<<<< HEAD
 	errors    token.ErrorList
+=======
+	errors    token.ErrorList // keeps track of all syntax errors (due to parsing/lexing etc)
+>>>>>>> lox-impl-temp
 
 	currentToken token.Token // next token to be consumed
 	tokens       token.List  // lookahead tokens
@@ -19,7 +27,11 @@ type Parser struct {
 
 func New(name, input string) (p *Parser) {
 	eh := func(filename string, pos token.Pos, msg string) {
+<<<<<<< HEAD
 		p.errors.Add(filename, pos, msg)
+=======
+		p.errors.Add(NewSyntaxError(filename, pos, msg))
+>>>>>>> lox-impl-temp
 		// NOTE: print to log for convenience, remove when no longer needed for debug
 		// log.Fatalln(p.errors[len(p.errors)-1])
 	}
@@ -32,7 +44,11 @@ func New(name, input string) (p *Parser) {
 
 // errorf formats the message and its arguments and should be favoured over using p.error
 func (p *Parser) errorf(pos token.Pos, message string, msgArgs ...interface{}) {
+<<<<<<< HEAD
 	p.errors.Add(p.name, pos, fmt.Sprintf(message, msgArgs...))
+=======
+	p.errors.Add(NewSyntaxError(p.name, pos, fmt.Sprintf(message, msgArgs...)))
+>>>>>>> lox-impl-temp
 	// log.Fatalln(p.errors[len(p.errors)-1])
 }
 
@@ -122,20 +138,69 @@ func (p *Parser) sync() {
 //===================================================================
 // Rules
 
+<<<<<<< HEAD
 func (p *Parser) Run() (expr ast.Expr, err error) {
+=======
+func (p *Parser) Run() (stmts []ast.Stmt, err error) {
+>>>>>>> lox-impl-temp
 	defer func() {
 		if r := recover(); r != nil {
 			err, _ = r.(error)
 		}
 	}()
+<<<<<<< HEAD
 	expr = p.expression()
 	return
 }
 
+=======
+	for p.peek().Type != token.EOF {
+		stmts = append(stmts, p.decl())
+	}
+	return
+}
+
+func (p *Parser) decl() ast.Stmt {
+	defer func() {
+		if r := recover(); r != nil {
+			err, isParseErr := r.(SyntaxError)
+		}
+	}()
+
+	if p.match(token.NAME) {
+		return p.varDecl()
+	}
+	return p.statement()
+}
+
+func (p *Parser) statement() ast.Stmt {
+	// if p.match(token.PRINT) {
+	// 	return p.printStmt()
+	// }
+	return p.exprStmt()
+}
+
+func (p *Parser) exprStmt() ast.Stmt {
+	val := p.expression()
+	_, ok := p.expect(token.SEMICOLON)
+	if !ok {
+		panic(p.errors)
+	}
+	return &ast.ExprStmt{Expression: val}
+}
+
+>>>>>>> lox-impl-temp
 func (p *Parser) expression() ast.Expr {
 	return p.equalityExpr()
 }
 
+<<<<<<< HEAD
+=======
+// TODO: Merge equality Expr and comparison Expr into 1 single comparison Expr
+// to make a statement like "1 == 2 == 3" or "1 < var1 < 3" possible
+// This may entail creaing a new expression node that stores Exprs and their operations
+// in 2 slices
+>>>>>>> lox-impl-temp
 func (p *Parser) equalityExpr() ast.Expr {
 	expr := p.comparisonExpr()
 	for p.match(token.EQ, token.NEQ) {
@@ -188,6 +253,7 @@ func (p *Parser) arithUnExpr() ast.Expr {
 func (p *Parser) primaryExpr() ast.Expr {
 	var n ast.Expr
 	switch {
+<<<<<<< HEAD
 	case p.match(token.FALSE):
 		n = &ast.BasicLit{Value: false, Token: p.currentToken}
 	case p.match(token.TRUE):
@@ -196,6 +262,19 @@ func (p *Parser) primaryExpr() ast.Expr {
 		n = &ast.BasicLit{Value: nil, Token: p.currentToken}
 	case p.match(token.INT, token.FLOAT, token.STR):
 		n = &ast.BasicLit{Value: p.currentToken.Value, Token: p.currentToken}
+=======
+	case p.match(token.FALSE, token.TRUE, token.NULL, token.INT, token.FLOAT, token.STR):
+		val := tokenToValue(p.currentToken)
+		if val == unknown {
+			p.errorf(p.currentToken.Pos, "unknown value '%s' seen, expected basic literal", p.currentToken.Value)
+		}
+		n = &ast.BasicLit{
+			Text:  p.currentToken.Value,
+			Typ:   p.currentToken.Type,
+			Token: p.currentToken,
+			Value: val,
+		}
+>>>>>>> lox-impl-temp
 	case p.match(token.LROUND):
 		lround := p.currentToken
 		expr := p.expression()
@@ -211,3 +290,37 @@ func (p *Parser) primaryExpr() ast.Expr {
 	}
 	return n
 }
+<<<<<<< HEAD
+=======
+
+type unknownVal struct{}
+
+var unknown = unknownVal{}
+
+func tokenToValue(tkn token.Token) interface{} {
+	switch tkn.Type {
+	case token.FALSE:
+		return false
+	case token.TRUE:
+		return true
+	case token.NULL:
+		return nil
+	case token.INT:
+		// if i, err := strconv.ParseInt(tkn.Value, 0, 64); err == nil {
+		// 	return i
+		// }
+		// NOTE: convenience sake, integers are converted automatically to floats
+		// TODO: separate ints from floats (this will also enable MOD to work properly)
+		if f, err := strconv.ParseFloat(tkn.Value, 64); err == nil {
+			return f
+		}
+	case token.FLOAT:
+		if f, err := strconv.ParseFloat(tkn.Value, 64); err == nil {
+			return f
+		}
+	case token.STR:
+		return tkn.Value
+	}
+	return unknownVal{}
+}
+>>>>>>> lox-impl-temp

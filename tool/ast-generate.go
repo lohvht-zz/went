@@ -18,9 +18,16 @@ type templateData interface {
 
 // nodeType models the string data needed for the Node interface
 type nodeType struct {
+<<<<<<< HEAD
 	DirName  string // parent directory name
 	BaseName string // name of the node type
 	Decls    []nodeImpl
+=======
+	DirName         string // parent directory name
+	BaseName        string // name of the node type
+	VisitReturnType string // type to be returned by the visitor
+	Decls           []nodeImpl
+>>>>>>> lox-impl-temp
 }
 
 func (nt nodeType) templateData() {}
@@ -57,9 +64,19 @@ func main() {
 		os.Mkdir(outdir, 0755)
 	}
 	expr := nodeType{
+<<<<<<< HEAD
 		DirName:  outdir,
 		BaseName: "Expr",
 		Decls: []nodeImpl{
+=======
+		DirName:         outdir,
+		BaseName:        "Expr",
+		VisitReturnType: "interface{}",
+		Decls: []nodeImpl{
+			nodeImpl{Name: "NameExpr", Fields: []field{
+				field{"Name", "token.Token"},
+			}},
+>>>>>>> lox-impl-temp
 			nodeImpl{Name: "GrpExpr", Fields: []field{
 				field{"LeftRound", "token.Token"}, field{"Expression", "Expr"},
 				field{"RightRound", "token.Token"},
@@ -71,11 +88,31 @@ func main() {
 				field{"Op", "token.Token"}, field{"Operand", "Expr"},
 			}},
 			nodeImpl{Name: "BasicLit", Fields: []field{
+<<<<<<< HEAD
 				field{"Value", "interface{}"}, field{"Token", "token.Token"},
 			}},
 		},
 	}
 	types := []nodeType{expr}
+=======
+				field{"Text", "string"}, field{"Typ", "token.Type"}, field{"Token", "token.Token"},
+				field{"Value", "interface{}"},
+			}},
+		},
+	}
+	stmt := nodeType{
+		DirName:         outdir,
+		BaseName:        "Stmt",
+		VisitReturnType: "",
+		Decls: []nodeImpl{
+			nodeImpl{Name: "ExprStmt", Fields: []field{field{"Expression", "Expr"}}},
+			nodeImpl{Name: "NameDeclStmt", Fields: []field{
+				field{"Name", "token.Token"}, field{"Init", "Expr"},
+			}},
+		},
+	}
+	types := []nodeType{stmt, expr}
+>>>>>>> lox-impl-temp
 	for _, typ := range types {
 		generateAndFormatFile(typ, typ.DirName, typ.BaseName, nodeTemplate)
 	}
@@ -132,10 +169,20 @@ func generateTemplate(name string, templateText string) *template.Template {
 			}
 			return buf.String()
 		},
+<<<<<<< HEAD
+=======
+		"RETURN": func(visitReturnType string) string {
+			if visitReturnType == "" {
+				return visitReturnType
+			}
+			return "return"
+		},
+>>>>>>> lox-impl-temp
 	}
 	return template.Must(template.New(name).Funcs(funcMap).Parse(templateText))
 }
 
+<<<<<<< HEAD
 var javatemp = `
 package com.craftinginterpreters.lox;
 
@@ -170,6 +217,8 @@ abstract class {{.BaseName}} {
 }
 `
 
+=======
+>>>>>>> lox-impl-temp
 var nodeTemplate = `
 package {{.DirName | FilePathBase}}
 
@@ -201,7 +250,12 @@ func (n *{{$nodeImpl.Name}}) {{$.BaseName | ToLower}}() {}
 {{- end}}
 
 {{range $i, $nodeImpl := .Decls}}
+<<<<<<< HEAD
 func (n *{{$nodeImpl.Name}}) accept(v Visitor) interface{} { return v.visit{{$nodeImpl.Name}}(n) }
+=======
+// Accept marshals the Visitor to the correct Visitor.visitXX method
+func (n *{{$nodeImpl.Name}}) Accept(v Visitor) interface{} { return v.Visit{{$nodeImpl.Name}}(n) }
+>>>>>>> lox-impl-temp
 {{- end}}
 `
 
@@ -218,16 +272,32 @@ import "github.com/lohvht/went/lang/token"
 
 // Node is the common interface for all AST nodes
 type Node interface {
+<<<<<<< HEAD
 	accept(Visitor) interface{}
 }
 
 // Visitor is the interface used to implement visitor pattern for the AST
+=======
+	// Accept marshals the Visitor to the correct Visitor.visitMethod
+	Accept(Visitor) interface{}
+}
+
+// Visitor is the interface used to implement visitor pattern for the AST
+// Interpreter nodes with their visit methods are supposed to return nil as
+// statements should resolve to a value
+>>>>>>> lox-impl-temp
 type Visitor interface {
 	{{- range $i, $type := $.Types}}
 	// visit {{$type.BaseName}} node functions
 	{{- range $j, $nodeImpl := $type.Decls}}
+<<<<<<< HEAD
 	visit{{$nodeImpl.Name}}(*{{$nodeImpl.Name}}) interface{}
 	{{- end}}
 	{{- end}}
+=======
+	Visit{{$nodeImpl.Name}}(*{{$nodeImpl.Name}}) interface{}
+	{{- end}}
+	{{end}}
+>>>>>>> lox-impl-temp
 }
 `

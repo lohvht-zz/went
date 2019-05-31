@@ -3,25 +3,47 @@ package token
 import (
 	"fmt"
 	"io"
+	"os"
 	"sort"
 )
 
-// Error has the position Pos, which if valid, points to beginning of offending token
-// and error condition as described by the message
-type Error struct {
-	Filename string
-	Pos      Pos
-	Msg      string
+// WentError is the  error type that is used for all reported went errors
+type WentError interface {
+	error
+	InputName() string    // name of the input string, usually a filename
+	Position() (int, int) // the position within the input string, line then column
+	Message() string
 }
 
-// filenamePosStr returns a string representation of <filename>:<line#>:<col#>
+// GenericError is the base error type of all went errors, it should be embedded
+// when implementing a new error in went. The position Pos  if valid points to
+// beginning of offending token and error condition as described by the message.
+type GenericError struct {
+	Input string
+	Pos   Pos
+	Msg   string
+}
+
+// InputName for WentError Interface
+func (e GenericError) InputName() string { return e.Input }
+
+// Position for WentError Interface
+func (e GenericError) Position() (l int, c int) {
+	l, c = e.Pos.decompose()
+	return
+}
+
+// Message for WentError Interface
+func (e GenericError) Message() string { return e.Msg }
+
+// InputNamePos returns a string representation of <InputName>:<line#>:<col#>
 // it can take the following forms:
-// <filename>:<line#>:<col#>
-// <filename>:<line#>
+// <InputName>:<line#>:<col#>
+// <InputName>:<line#>
 // <line#>:<col#>
-// "" => only happens when filename is empty, and Pos is not valid
-func (e Error) filenamePosStr() string {
-	s := e.Filename
+// "" => only happens when InputName is empty, and Pos is not valid
+func (e GenericError) InputNamePos() string {
+	s := e.InputName()
 	if e.Pos.IsValid() {
 		if s != "" {
 			s += ":"
@@ -31,22 +53,38 @@ func (e Error) filenamePosStr() string {
 	return s
 }
 
-func (e Error) Error() string {
-	s := e.filenamePosStr()
-	if s == "" {
-		// return Msg if empty filename and invalid Pos
+// StandardErrorMessageFormat returns a string that adheres to the standard error format
+// if inputNamePos and errorType are both "", return only the message
+// if only inputNamePos is empty, return "[errorType]: message"
+// else, return "[errorType]:inputName:l:c: message"
+func (e GenericError) StandardErrorMessageFormat(errorType string) string {
+	s := e.InputNamePos()
+	switch {
+	case s == "" && errorType == "":
 		return e.Msg
+	case s == "" && errorType != "":
+		return "[" + errorType + "]: " + e.Msg
+	case s != "" && errorType == "":
+		return s + ": " + e.Msg
+	default:
+		return "[" + errorType + "]:" + s + ": " + e.Msg
 	}
-	return s + ": " + e.Msg
 }
 
-// ErrorList is a list of *Errors
-type ErrorList []*Error
+func (e GenericError) Error() string {
+	return e.StandardErrorMessageFormat("")
+}
+
+// NewGenericError returns a generic went error
+func NewGenericError(inputname string, pos Pos, msg string) *GenericError {
+	return &GenericError{inputname, pos, msg}
+}
+
+// ErrorList is a list of WentErrors
+type ErrorList []WentError
 
 // Add adds an Error with given position and error message to an ErrorList.
-func (p *ErrorList) Add(filename string, pos Pos, msg string) {
-	*p = append(*p, &Error{filename, pos, msg})
-}
+func (p *ErrorList) Add(e WentError) { *p = append(*p, e) }
 
 // Reset resets an ErrorList to no errors.
 func (p *ErrorList) Reset() { *p = (*p)[0:0] }
@@ -63,11 +101,11 @@ func (p ErrorList) Less(i, j int) bool {
 	// Note that it is not sufficient to simply compare file offsets because
 	// the offsets do not reflect modified line information (through //line
 	// comments).
-	if p[i].Filename != p[j].Filename {
-		return p[i].Filename < p[j].Filename
+	if p[i].InputName() != p[j].InputName() {
+		return p[i].InputName() < p[j].InputName()
 	}
-	el, ec := p[i].Pos.decompose()
-	fl, fc := p[j].Pos.decompose()
+	el, ec := p[i].Position()
+	fl, fc := p[j].Position()
 
 	if el != fl {
 		return el < fl
@@ -75,7 +113,7 @@ func (p ErrorList) Less(i, j int) bool {
 	if ec != fc {
 		return ec < fc
 	}
-	return p[i].Msg < p[j].Msg
+	return p[i].Message() < p[j].Message()
 }
 
 // Sort sorts an ErrorList. *Error entries are sorted by position,
@@ -87,11 +125,11 @@ func (p ErrorList) Sort() { sort.Sort(p) }
 func (p *ErrorList) RemoveMultiples() {
 	sort.Sort(p)
 	var lastFn string
-	var lastPos Pos
+	var lastLine int
 	i := 0
 	for _, e := range *p {
-		if e.Filename != lastFn || e.Pos.Line() != lastPos.Line() {
-			lastPos = e.Pos
+		if currLine, _ := e.Position(); e.InputName() != lastFn || currLine != lastLine {
+			lastLine = currLine
 			(*p)[i] = e
 			i++
 		}
@@ -107,6 +145,8 @@ func (p ErrorList) Error() string {
 	case 1:
 		return p[0].Error()
 	}
+	// NOTE: Printing here for convenience
+	PrintError(os.Stdout, p)
 	return fmt.Sprintf("%s (and %d more errors)", p[0], len(p)-1)
 }
 
