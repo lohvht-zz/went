@@ -191,16 +191,11 @@ ScanAgain:
 			return l.nextToken(token.SEMICOLON)
 		}
 		goto ScanAgain
-<<<<<<< HEAD
-	case r == '\'':
-		return l.lexQuotedString()
-=======
 	case r == '\'' || r == '"':
 		if r == '\'' {
 			return l.lexQuotedString(true)
 		}
 		return l.lexQuotedString(false)
->>>>>>> lox-impl-temp
 	case r == '`':
 		return l.lexRawString()
 	case r == ':':
@@ -294,10 +289,6 @@ ScanAgain:
 }
 
 // lexQuotedString scans a quoted string, can be escaped using the '\' character
-<<<<<<< HEAD
-func (l *Lexer) lexQuotedString() token.Token {
-	l.ignore() // ignore the opening quote
-=======
 func (l *Lexer) lexQuotedString(isSingleQuote bool) token.Token {
 	l.ignore() // ignore the opening quote
 	var endQuote rune
@@ -306,7 +297,6 @@ func (l *Lexer) lexQuotedString(isSingleQuote bool) token.Token {
 	} else {
 		endQuote = '"'
 	}
->>>>>>> lox-impl-temp
 Loop:
 	for {
 		switch l.next() {
@@ -314,11 +304,7 @@ Loop:
 			if r := l.next(); r == '\n' || r == eof {
 				l.errorf("unterminated quoted string")
 			}
-<<<<<<< HEAD
-		case '\'':
-=======
 		case endQuote:
->>>>>>> lox-impl-temp
 			l.backup() // move back before the closing quote
 			break Loop
 		}
@@ -461,11 +447,7 @@ Loop:
 		}
 	}
 	switch l.prevTokTyp {
-<<<<<<< HEAD
-	case token.NAME, token.STR, token.INT, token.FLOAT,
-=======
 	case token.NAME, token.STR, token.INT, token.FLOAT, token.FALSE, token.TRUE,
->>>>>>> lox-impl-temp
 		token.BREAK, token.CONT, token.RETURN,
 		token.RROUND, token.RSQUARE, token.RCURLY:
 		*insertSemicolon = true
